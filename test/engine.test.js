@@ -127,4 +127,25 @@ t('drills: every drill makes valid questions',()=>{
     }
   }
 });
+t('grading: 3/2/1 points, escalation, global deduction, pass',()=>{
+  const cf=G.FUX_NOTES.dorian,c=v=>ctxOf(1,cf,true,notes(v));
+  // parallel fifths (3) somewhere
+  let g=G.grade(G.analyze(c('A4 C5 B4 A4 D5 C5 E5 D5 D5 C#5 D5')),c('A4 C5 B4 A4 D5 C5 E5 D5 D5 C#5 D5'));
+  const par=g.items.find(x=>x.id==='parallel');assert(par&&par.pts===3,JSON.stringify(g.items));
+  // hidden fifth/octave is 2 points
+  assert.equal(G.POINTS.hidden,2);
+  // forbidden leap is 1 point
+  const leap=g.items.find(x=>x.id==='leapBig'||x.id==='leapAug');if(leap)assert.equal(leap.pts,1);
+  // a correct Fux line passes
+  const ok=c('A4 A4 G4 A4 B4 C5 C5 B4 D5 C#5 D5');g=G.grade(G.analyze(ok),ok);
+  assert(g.pass);assert.equal(g.items.filter(x=>x.pts>=2).length,0);
+  // run of five thirds: 2 points
+  const cf2=notes('C4 D4 E4 F4 G4 A4 G4 F4 E4 D4 C4'),cc=ctxOf(1,cf2,true,notes('C5 F4 G4 A4 B4 C5 B4 A4 G4 B4 C5'));
+  const r2=G.analyze(cc),run=G.grade(r2,cc).items.find(x=>x.id==='run');
+  assert(run,'no run '+r2.issues.map(x=>x.id));assert.equal(run.pts,run.cols.length-3);
+  // all-perfect downbeats get a global deduction
+  const cf3=G.FUX_NOTES.dorian,pp=ctxOf(1,cf3,true,notes('D5 A4 B4 A4 D5 C5 E5 D5 D5 C#5 D5'));
+  const g3=G.grade(G.analyze(pp),pp);
+  assert(g3.global.length>=1,JSON.stringify(g3));
+});
 console.log(`${pass} tests passed`);

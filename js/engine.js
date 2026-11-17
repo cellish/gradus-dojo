@@ -270,6 +270,27 @@ function analyze(c){
   return {issues,iv,mo,dis,missing,complete:missing===0,la,stats:{moves,contra,perf,leaps,span:filled.length>=2?span+1:null}};
 }
 
+/* ================= grading =================
+ * Based on classroom penalty rubrics (Nancy Rogers, FSU, Species Counterpoint Grading Guidelines):
+ * 3 / 2 / 1 points by severity, escalating deductions for repeated weaknesses, and global deductions.
+ */
+const POINTS={parallel:3,antiparallel:3,hidden:2,dissonance:2,weakdis:2,susp:2,prep:2,beatpar:2,eighthStep:2};
+function grade(r,c){
+  const items=r.issues.map(x=>{
+    let pts=POINTS[x.id]||1;
+    if(x.id==='run')pts=Math.max(1,x.cols.length-3); // 4 in a row: 1 point, 5: 2 points ...
+    return {id:x.id,t:x.t,pts,cols:x.cols};
+  });
+  const global=[],n=c.cf.length,mid=Math.max(1,n-2),ratio=r.stats.perf/mid;
+  if(r.complete){
+    if(ratio>1/2)global.push({t:'完全協和の使いすぎ(途中の拍頭の半分を超える)',pts:2});
+    else if(ratio>1/3)global.push({t:'完全協和が多め(途中の拍頭の3分の1を超える)',pts:1});
+  }
+  const total=items.reduce((a,x)=>a+x.pts,0)+global.reduce((a,x)=>a+x.pts,0);
+  const pass=r.complete&&!r.issues.some(x=>x.lv==='err');
+  return {total,items,global,pass,complete:r.complete};
+}
+
 /* ================= solver ================= */
 const STRICT=new Set(['beatpar','comp','sixth','spacing','range','twoLeaps','antiparallel','repeat','climax','run','eighthUp','eighthMany']);
 function solve(sp,cf,above,S,rhythm,ties,limitMs){
@@ -455,7 +476,7 @@ function solveFor(sp,cf,above,rhythm,ties,ms){
 
 const GE={LEFT,LETTERS,PC,QN,N,midi,nameOf,noteStr,cpy,interval,ivName,vInfo,motion,
   FUX,MODES,FINAL_MODE,FUX_NOTES,modeOf,SPECIES,PATTERNS,PAT_FIRST,PAT_MID,hasEighth,defaultRhythm,RULES,INJECT,
-  buildSlots,skey,valsOf,editable,analyze,STRICT,solve,solveOnce,solveFor,
+  buildSlots,skey,valsOf,editable,analyze,POINTS,grade,STRICT,solve,solveOnce,solveFor,
   pickOne,melBad,cfIssues,genCF,cfSolvable,parseCF,genCFChecked,makeQuestion};
 root.GE=GE;
 if(typeof module!=='undefined'&&module.exports)module.exports=GE;
