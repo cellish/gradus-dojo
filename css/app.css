@@ -274,6 +274,28 @@ input[type=range]{accent-color:var(--accent);width:110px}
 @media (min-width:921px){.mbar{display:none!important}}
 @media (max-width:920px){.wrap{padding-bottom:24px}.credits{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
 
+/* ---- ドリル ---- */
+.drill-card{display:flex;flex-direction:column}
+.drill-list{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px;border-bottom:1px solid var(--hair);background:var(--surface-2);border-radius:12px 12px 0 0}
+.drill-list button{font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:999px;padding:5px 12px;min-height:34px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}
+.drill-list button small{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.drill-list button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.drill-list button[aria-pressed="true"] small{color:inherit;opacity:.85}
+.drill-stage{display:flex;flex-direction:column;gap:6px;padding:12px 0 16px;min-height:200px}
+.drill-tools{display:flex;gap:12px;align-items:center;padding:0 16px;flex-wrap:wrap}
+.drill-hidden{margin:24px 16px;padding:28px 16px;border:1px dashed var(--hair);border-radius:10px;text-align:center;color:var(--muted)}
+.dq{font-family:"Shippori Mincho",serif;font-size:19px;font-weight:700;line-height:1.45;margin:0}
+.dch{display:grid;grid-template-columns:1fr;gap:8px}
+.dch button{font:inherit;font-size:15px;text-align:left;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:10px 14px;min-height:46px;cursor:pointer;display:flex;gap:10px;align-items:center}
+.dch button:hover:not(:disabled){border-color:var(--accent-line)}
+.dch button kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--hair);border-radius:4px;padding:0 5px;color:var(--muted)}
+.dch button.right{border-color:var(--imperfect);background:color-mix(in srgb,var(--imperfect) 12%,var(--surface))}
+.dch button.wrong{border-color:var(--dis);background:var(--err-soft)}
+.dch button:disabled{cursor:default}
+.dres{font-weight:700}.dres.good{color:var(--imperfect)}.dres.bad{color:var(--dis)}
+.dexp{margin:0;font-size:13.5px;line-height:1.7}
+.dstreak{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+
 /* ---- 記録の書き出し・読み込み ---- */
 .io{display:flex;flex-direction:column;gap:8px}
 .io textarea{width:100%;min-height:110px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--hair);border-radius:8px;padding:8px}
@@ -299,7 +321,7 @@ input[type=range]{accent-color:var(--accent);width:110px}
 }
 
 .credits{max-width:1180px;margin:0 auto;padding:0 20px 28px;font-size:11.5px;color:var(--faint)}
-#staff .vfw text{font-family:Bravura,Academico;stroke:none}
+.vfw text{font-family:Bravura,Academico;stroke:none}
 #staff.vf .ghost .nb{fill:var(--accent);opacity:.4}
 #staff.vf .sol .nb{fill:none;stroke:var(--perfect);stroke-width:1.8}
 #staff.vf .acc.ghost{fill:var(--accent);opacity:.5}

@@ -114,4 +114,17 @@ t('species 5 solver handles eighth-note rhythms',()=>{
 t('eighth-step review question can be generated',()=>{
   const q=G.makeQuestion('eighthStep');assert(q,'no question');assert.equal(q.sp,5);
 });
+t('drills: every drill makes valid questions',()=>{
+  const GD=require('../js/drills.js');
+  for(const d of GD.DRILLS){
+    for(let k=0;k<(['dis-kind','susp'].includes(d.id)?15:50);k++){
+      const q=GD.make(d.id);assert(q,'no question '+d.id);
+      assert.equal(q.choices.length,4,d.id);
+      assert.equal(q.choices.filter(c=>c.ok).length,1,d.id+' '+JSON.stringify(q.choices));
+      assert.equal(new Set(q.choices.map(c=>c.label)).size,4,d.id+' duplicate labels');
+      assert.equal(q.score.slots.length,q.score.vals.length,d.id);
+      GD.analyzeScore(q.score);
+    }
+  }
+});
 console.log(`${pass} tests passed`);
