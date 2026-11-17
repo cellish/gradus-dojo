@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Gradus 対位法ドリル</title>
+<meta name="description" content="フックスの類別対位法(第1〜5類)を、定旋律の自動生成・規則の即時判定・解答例との比較・復習問題で練習できるドリル。">
+<meta name="theme-color" content="#ECEEF3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121419" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gradus">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Noto+Music&family=Noto+Sans+JP:wght@400;500;700&family=Shippori+Mincho:wght@600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="head-row">
+    <header>
+      <p class="eyebrow">J. J. フックス『Gradus ad Parnassum』(1725)の類別対位法</p>
+      <h1>Gradus 対位法ドリル<small id="subTitle">第1類 · 1対1</small></h1>
+    </header>
+    <nav class="tabs" role="tablist" aria-label="画面">
+      <button type="button" role="tab" data-view="practice">練習</button>
+      <button type="button" role="tab" data-view="review">復習</button>
+      <button type="button" role="tab" data-view="history">記録</button>
+    </nav>
+  </div>
+
+  <!-- 課題バー: 何を練習するか -->
+  <section class="taskbar" aria-label="課題" data-show="practice">
+    <div class="grp"><span class="lab">類</span>
+      <div class="seg sp-seg" role="group" aria-label="類" id="spSeg"></div></div>
+    <div class="grp grow"><label class="lab" for="cfSel">定旋律</label>
+      <div class="row"><select id="cfSel"></select><button class="btn" id="quickGen" type="button" title="新しい定旋律を自動生成します">新しい定旋律</button><button class="btn ghost-btn" type="button" data-drawer="cf" aria-controls="drawer">定旋律の管理…</button></div></div>
+    <div class="grp keeplab"><span class="lab">対旋律の位置</span>
+      <div class="seg" role="group" aria-label="対旋律の位置"><button id="posAbove" type="button">上</button><button id="posBelow" type="button">下</button></div></div>
+    <div class="grp end"><span class="lab">&nbsp;</span>
+      <button class="btn ghost-btn" type="button" data-drawer="rules" aria-controls="drawer" id="rulesBtn">第1類の規則</button></div>
+  </section>
+
+  <div class="layout">
+    <div class="main">
+      <div class="card staff-card" data-show="practice review">
+        <!-- 操作バー: 再生と編集 -->
+        <div class="opbar" aria-label="再生と編集">
+          <div class="row">
+            <button class="btn primary" id="playBtn" type="button">▶ 再生</button>
+            <select id="voiceSel" aria-label="再生する声部"><option value="both">両声部</option><option value="cf">定旋律のみ</option><option value="cp">対旋律のみ</option></select>
+            <input id="tempo" type="range" min="60" max="240" step="6" value="144" aria-label="テンポ"><span class="tempo-val" id="tempoVal">♩ = 144</span>
+          </div>
+          <div class="row">
+            <button class="btn" id="undoBtn" type="button" title="元に戻す(Ctrl+Z)">元に戻す</button>
+            <button class="btn" id="redoBtn" type="button" title="やり直す(Ctrl+Shift+Z)">やり直す</button>
+            <button class="btn" id="cmpBtn" type="button" data-show="practice" aria-pressed="false">解答例と比べる</button>
+            <button class="btn" id="clearBtn" type="button" data-show="practice">消去</button>
+            <button class="btn" id="midiBtn" type="button" aria-pressed="false" hidden>MIDI鍵盤を使う</button>
+          </div>
+          <div class="row" data-show="practice">
+            <label class="check"><input type="checkbox" id="hintChk"> 候補を表示</label>
+            <label class="mini" for="fbSel">判定</label>
+            <select id="fbSel"><option value="live">その場で表示</option><option value="check">答え合わせで表示</option></select>
+          </div>
+        </div>
+        <div class="staff-scroll"><svg id="staff" role="img" aria-label="大譜表。定旋律と対旋律、各音の音程と進行"></svg></div>
+        <div class="selnote" id="selIssues" aria-live="polite"></div>
+        <div class="editor">
+          <div class="ed-info" id="edInfo"></div>
+          <div class="ed-btns">
+            <button class="btn" data-act="prev" type="button" aria-label="前の音">◀</button>
+            <button class="btn" data-act="up" type="button" aria-label="1音上げる">▲</button>
+            <button class="btn" data-act="down" type="button" aria-label="1音下げる">▼</button>
+            <button class="btn" data-act="sharp" type="button" aria-label="シャープ">♯</button>
+            <button class="btn" data-act="natural" type="button" aria-label="ナチュラル">♮</button>
+            <button class="btn" data-act="flat" type="button" aria-label="フラット">♭</button>
+            <button class="btn" data-act="del" type="button">音を消す</button>
+            <button class="btn" data-act="next" type="button" aria-label="次の音">▶</button>
+          </div>
+        </div>
+        <div class="ed-extra" id="edExtra"></div>
+        <div class="keys">キー操作: <kbd>←</kbd><kbd>→</kbd> 選択 · <kbd>↑</kbd><kbd>↓</kbd> 音高 · <kbd>#</kbd> <kbd>b</kbd> <kbd>n</kbd> 臨時記号 · <kbd>Delete</kbd> 消去 · <kbd>Enter</kbd> この和音 · <kbd>Space</kbd> 全体を再生 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> 元に戻す · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> やり直す<span id="midiHelp" hidden> · MIDI鍵盤: 押した音が選択中の位置に入り、次の位置へ進みます</span></div>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--perfect)"></i>完全協和(1・5・8度)</span>
+          <span><i class="sw" style="background:var(--imperfect)"></i>不完全協和(3・6度)</span>
+          <span><i class="sw" style="background:var(--dis)"></i>不協和(経 経過音・刺 刺繍音・掛 掛留・カ カンビアータ・保 前後が未入力で判定保留)</span>
+          <span>反 反行 · 斜 斜行 · 並 並行 · 平 平行</span>
+          <label class="ivmode"><span>音程の表示</span><select id="ivSel" aria-label="音程の表示"><option value="raw">実際の度数</option><option value="simple">単音程(10→3)</option><option value="quality">長短付き(M6・m3)</option></select></label>
+        </div>
+      </div>
+
+      <div class="card hist" id="histView" data-show="history"></div>
+    </div>
+
+    <aside class="card panel" id="panel" aria-live="polite"></aside>
+  </div>
+</div>
+
+<footer class="credits">© 2026 jun　All rights reserved.　楽譜の描画:VexFlow(MIT License)、楽譜フォント:Bravura・Academico(SIL Open Font License 1.1)。定旋律はフックス『Gradus ad Parnassum』(1725)によります。</footer>
+
+<!-- 画面下の指摘バー(スマホ) -->
+<button type="button" class="mbar" id="mbar" hidden></button>
+
+<!-- 引き出し: 規則 / 定旋律の管理 -->
+<div class="drawer-back" id="drawerBack" hidden></div>
+<aside class="drawer" id="drawer" aria-label="引き出し" hidden>
+  <div class="drawer-head"><h2 id="drawerTitle">規則</h2><button class="btn" type="button" id="drawerClose" aria-label="閉じる">閉じる</button></div>
+  <div class="drawer-body">
+    <section id="paneRules"><div id="rulesBody"></div></section>
+    <section id="paneCf">
+      <div class="cft-sec" id="cfCur"></div>
+      <div class="cft-sec">
+        <h3>自動生成</h3>
+        <p class="muted">旋律の規則(順次進行が中心、頂点は一度、跳躍の後は反対方向へ戻る、順次進行で終止音に入るなど)を満たし、第1〜5類のどれでも、上下どちらの声部でも解答が作れることを確かめた定旋律を作ります。</p>
+        <div class="row">
+          <label class="mini" for="genMode">旋法</label>
+          <select id="genMode"><option value="random">おまかせ</option><option value="dorian">ドリア</option><option value="phrygian">フリギア</option><option value="lydian">リディア</option><option value="mixolydian">ミクソリディア</option><option value="aeolian">エオリア</option><option value="ionian">イオニア</option></select>
+          <label class="mini" for="genLen">長さ</label>
+          <select id="genLen"><option value="short">短め(8〜9音)</option><option value="mid" selected>標準(10〜11音)</option><option value="long">長め(12〜14音)</option></select>
+          <button class="btn primary" id="genBtn" type="button">生成する</button>
+        </div>
+      </div>
+      <div class="cft-sec">
+        <h3>自分で入力</h3>
+        <p class="muted">音名を空白で区切って入力します。オクターヴ番号(中央ハ = C4)を省くと、直前の音に近い高さになります。♯は <code>#</code>、♭は <code>b</code> で書きます。</p>
+        <div class="row"><input id="cfText" type="text" inputmode="latin" autocomplete="off" spellcheck="false" placeholder="例: D F E D G F A G F E D"><button class="btn primary" id="cfAdd" type="button">追加</button></div>
+        <div id="cfMsg"></div>
+      </div>
+    </section>
+  </div>
+</aside>
+
+<script src="vendor/vexflow-bravura.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/score.js"></script>
+<script src="js/app.js"></script>
+<script>
+if('serviceWorker' in navigator&&location.protocol==='https:'){addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});}
+</script>
+</body>
+</html>
