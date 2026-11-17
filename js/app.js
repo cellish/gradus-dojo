@@ -400,9 +400,10 @@ function where(cols){const a=curS[Math.min(...cols)],b=curS[Math.max(...cols)];
 let toastT=null,toastMsg='';
 function toast(m){toastMsg=m;clearTimeout(toastT);toastT=setTimeout(()=>{toastMsg='';render();},5500);render();}
 function issueList(list){
-  return '<div class="issues">'+list.map(it=>`<button class="issue" type="button" data-issue="${lastR.issues.indexOf(it)}"><span class="sev ${it.lv}">${it.lv==='err'?'誤り':'注意'}</span><span><span class="it-title">${it.t}</span><span class="it-where">${where(it.cols)}</span></span><span class="it-x">${it.x}</span></button>`).join('')+'</div>';
+  return '<div class="issues">'+list.map(it=>`<button class="issue" type="button" data-issue="${lastR.issues.indexOf(it)}"><span class="sev ${it.lv}">${it.lv==='err'?'誤り':'注意'}</span><span><span class="it-title">${it.t}</span><span class="it-where">${where(it.cols)}</span><span class="pts">−${ptsOf(it)}</span></span><span class="it-x">${it.x}</span></button>`).join('')+'</div>';
 }
-function scoreOf(r){const e=r.issues.filter(x=>x.lv==='err').length,w=r.issues.length-e;return {e,w,score:r.complete?Math.max(0,100-10*e-3*w):null};}
+function scoreOf(r){const e=r.issues.filter(x=>x.lv==='err').length,w=r.issues.length-e,g=G.grade(r,ctx());return {e,w,g};}
+const ptsOf=x=>x.id==='run'?Math.max(1,x.cols.length-3):(G.POINTS[x.id]||1);
 function compareBox(){
   if(!state.compare)return '';
   const SV=valsOf(curS,state.compare.cp);let diff=0;
@@ -413,7 +414,7 @@ function compareBox(){
     <p class="muted">解答例は探索で作った一例で、唯一の正解ではありません。「採用」しても「元に戻す」で自分の解答に戻れます。</p></div>`;
 }
 function drawPracticePanel(r){
-  const {e,w,score}=scoreOf(r),st=r.stats,judge=showJudg();
+  const {e,w,g}=scoreOf(r),st=r.stats,judge=showJudg();
   let h='';
   if(state.example)h+=`<div class="note-ex">例として、誤りを含む解答を表示しています。五線をクリックして自由に書き換えてください。</div>`;
   if(!judge&&!state.fill){
@@ -422,7 +423,7 @@ function drawPracticePanel(r){
       <button class="btn primary" type="button" id="checkBtn">答え合わせ</button></div>`;
   }else{
     const big=!e&&!w?`<span class="good">規則違反なし</span>`:`${e?`<span class="e">誤り ${e}</span>`:'<span class="good">誤り 0</span>'} · ${w?`<span class="w">注意 ${w}</span>`:'注意 0'}`;
-    h+=`<div class="verdict"><div class="big">${big}</div><div class="sub">${r.complete?`目安 ${score}点(誤り −10、注意 −3)`:`未入力 ${r.missing}音(採点は書き終えてから)`}</div></div>`;
+    h+=`<div class="verdict"><div class="big">${big}${g.pass?'<span class="passbadge">合格</span>':''}</div><div class="sub">${r.complete?`減点 ${g.total}(重い誤り3点・中くらい2点・軽い1点)`:`未入力 ${r.missing}音(採点は書き終えてから)`}</div></div>`;
   }
   h+=compareBox();
   if(state.fill)h=fillBox(r)+h;
@@ -432,6 +433,7 @@ function drawPracticePanel(r){
     h+=`<h2>指摘<span>${r.issues.length}件 · クリックで該当箇所を再生</span></h2>`;
     if(!r.issues.length)h+=r.complete?`<div class="ok"><b>よくできました。</b>${SPECIES[state.sp].name}の規則をすべて満たしています。保存して記録に残しておけます。</div>`:`<div class="ok">いまのところ規則違反はありません。</div>`;
     else h+=issueList(r.issues);
+    if(g.global.length)h+='<div class="issues">'+g.global.map(x=>`<div class="issue gl"><span class="sev warn">全体</span><span><span class="it-title">${x.t}</span><span class="pts">−${x.pts}</span></span><span class="it-x">途中の拍頭は、3度・6度を中心にすると2声部が独立して聞こえます。</span></div>`).join('')+'</div>';
   }
   h+=`<p class="toast" role="status">${toastMsg}</p>`;
   $('#panel').innerHTML=h;
@@ -473,7 +475,7 @@ function drawHistory(){
   if(!L.length)h+=`<div class="empty">まだ保存した解答はありません。練習画面の「この解答を保存」で追加できます。</div>`;
   else h+=L.map(e=>{const d=new Date(e.t),ds=`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     return `<div class="hrow"><div><div class="h-title">${SPECIES[e.sp].name} · ${esc(e.label||(cfEntry(e.mode)||{short:''}).short)} · 対旋律が${e.above?'上':'下'}</div><div class="h-sub">${ds} · 誤り ${e.errs} · 注意 ${e.warns}${e.complete?'':' · 未完成'}</div></div>
-      <div class="h-score${e.complete?'':' inc'}">${e.complete?e.score:'未完成'}</div>
+      <div class="h-score${e.complete?'':' inc'}">${!e.complete?'未完成':e.pts!=null?`−${e.pts}${e.pass?'<small class="passbadge">合格</small>':''}`:e.score}</div>
       <div class="h-acts"><button class="btn" type="button" data-hopen="${e.id}">開く</button><button class="btn danger" type="button" data-hdel="${e.id}">${pendingDel===e.id?'本当に削除':'削除'}</button></div></div>`;}).join('');
   $('#histView').innerHTML=h;
   let p=`<h2>よく間違える規則<span>保存した解答と復習の記録</span></h2>${weakHTML(10)}`;
@@ -511,7 +513,8 @@ function drawRules(){
   const sp=RULE_TEXT[state.sp];
   let h=`<div class="rules-grid"><div><h3>${SPECIES[state.sp].name}(${sp[0]})の要点</h3><ul>${sp[1].map(x=>`<li>${x}</li>`).join('')}</ul></div>`;
   RULE_TEXT.common.forEach(([t,l])=>{h+=`<div><h3>${t}</h3><ul>${l.map(x=>`<li>${x}</li>`).join('')}</ul></div>`;});
-  h+=`</div><p class="fine">教科書によって細部は異なります。ここではフックスの規則をやや厳しめに適用しています。点数(誤り−10、注意−3)は目安です。</p>`;
+  h+=`<div><h3>採点のしかた</h3><ul><li>授業で使われている罰点表にならい、指摘ごとに点を引きます。重い誤り(平行5度・8度、反行による連続5度・8度)は3点、中くらいの誤り(隠伏5度・8度、不協和の扱い、掛留)は2点、それ以外は1点。</li><li>同じ種類の3度・6度の連続は、4つで1点、5つで2点と重くなります。途中の拍頭に完全協和が多すぎると、全体で1〜2点引きます。</li><li>書き終えていて「誤り」が0なら合格です。</li></ul></div>`;
+  h+=`</div><p class="fine">教科書によって細部は異なります。ここではフックスの規則をやや厳しめに適用しています。採点は N. Rogers(フロリダ州立大学)の類別対位法の採点基準を土台にしています。</p>`;
   $('#rulesBody').innerHTML=h;
 }
 
@@ -703,11 +706,11 @@ function recordStats(r){
 }
 function saveAnswer(){
   const r=lastR;if(!Object.keys(state.cp).length){toast('保存する音がまだありません。');return;}
-  const {e,w,score}=scoreOf(r),snap=snapshot();
+  const {e,w,g}=scoreOf(r),snap=snapshot();
   const last=store.history.find(x=>x.key===dkey());
   if(last&&JSON.stringify({cp:last.cp,rhythm:last.rhythm,ties:last.ties})===JSON.stringify(snap)){last.t=Date.now();persist();toast('同じ解答がすでに保存されています(日時を更新しました)。');return;}
   store.history.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),t:Date.now(),key:dkey(),sp:state.sp,mode:state.mode,label:(cfEntry(state.mode)||{short:''}).short,cfNotes:cf().map(noteStr).join(' '),above:state.above,
-    cp:snap.cp,rhythm:snap.rhythm,ties:snap.ties,score:score==null?0:score,errs:e,warns:w,complete:r.complete});
+    cp:snap.cp,rhythm:snap.rhythm,ties:snap.ties,pts:g.total,pass:g.pass,errs:e,warns:w,complete:r.complete});
   if(store.history.length>300)store.history.length=300;
   recordStats(r);
   persist();toast('保存しました。「記録」タブで見返せます。');

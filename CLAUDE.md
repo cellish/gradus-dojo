@@ -69,7 +69,7 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 
 **4. 判定結果の形。**
 `issues[]` の各要素は `{id, lv:'err'|'warn', cols:[slot index…], t:見出し, x:説明}`。`id` は `RULES` のキーで、復習の集計と出題(`INJECT`)がこれに依存する。**新しい規則は `RULES` に名前を足し、`INJECT` に出題できる類を書く。**
-`err` は規則違反、`warn` は注意(様式上の推奨)。採点は `err` −10、`warn` −3 の目安。
+`err` は規則違反、`warn` は注意(様式上の推奨)。採点は `grade(r, ctx)`(授業用の罰点表: 規則ごとに3・2・1点、`POINTS`。3度・6度の連続は累進、完全協和の使いすぎは全体減点)。合格 = 書き終えていて `err` が0。
 
 **5. 保存。**
 localStorage キー `gradus-v2`、構造 `{drafts, prefs, history, stats, cfs, cfSeq}`。旧 `gradus-drafts-v1` は読み込み時に移行。**構造を変えるときは移行処理を書き、書き出し/読み込み(`exportJSON`・`importFrom`)も合わせる。**
