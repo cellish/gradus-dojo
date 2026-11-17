@@ -98,9 +98,14 @@ function engraveNow(md){
       tk.push([i,t]);
     });
     const cpVoice=new V.Voice({numBeats:4,beatValue:4}).setMode(V.Voice.Mode.SOFT);cpVoice.addTickables(tk.map(x=>x[1]));
+    // Beam each pair of eighth notes (both must be real notes; a ghost note cannot carry a beam).
+    const beams=[];
+    for(let k=0;k+1<tk.length;k++){const [i,a]=tk[k],[j,b]=tk[k+1];
+      if(slots[i].dur===0.5&&slots[j].dur===0.5&&cpNotes[i]&&cpNotes[j]){const bm=new V.Beam([a,b]);bm.setStyle({fillStyle:col.cp,strokeStyle:col.cp});beams.push(bm);k++;}}
     const fmt=new V.Formatter();fmt.joinVoices([cfVoice]);fmt.joinVoices([cpVoice]);
     fmt.format([cfVoice,cpVoice],x+w-su.getNoteStartX()-12);
     cfVoice.draw(ctx,cfStave);cpVoice.draw(ctx,cpStave);
+    if(beams.length){ctx.setFillStyle(col.cp);ctx.setStrokeStyle(col.cp);beams.forEach(bm=>bm.setContext(ctx).draw());ctx.setFillStyle(col.ink);ctx.setStrokeStyle(col.ink);}
     cfX[m]=(cfn.getNoteHeadBeginX()+cfn.getNoteHeadEndX())/2;
     tk.forEach(([i,t])=>{slotX[i]=t.getNoteHeadBeginX?((t.getNoteHeadBeginX()+t.getNoteHeadEndX())/2):(t.getAbsoluteX()+6);
       if(!isFinite(slotX[i]))slotX[i]=t.getAbsoluteX()+6;});

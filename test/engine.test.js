@@ -71,4 +71,47 @@ t('species 5 rhythm patterns fill each bar with 4 beats',()=>{
     for(let m=0;m<n;m++)assert.equal(S.filter(s=>s.m===m).reduce((a,s)=>a+s.dur,0),4,`n=${n} bar ${m}`);
   }
 });
+t('eighth notes: stepwise pair is fine, leaping into it is an error',()=>{
+  const cf=G.FUX_NOTES.dorian,n=cf.length,rh=G.defaultRhythm(n);rh[2]='hqee';
+  // find a full error-free answer for this rhythm, then check its eighth pair
+  const sol=G.solveFor(5,cf,true,rh,[],4000);assert(sol,'no solution with eighths');
+  const S=G.buildSlots(5,n,rh,[]),ctx=v=>({sp:5,cf,above:true,slots:S,vals:G.valsOf(S,v),rhythm:rh,ties:[]});
+  let r=G.analyze(ctx(sol));
+  assert.equal(r.issues.filter(x=>x.lv==='err').length,0,JSON.stringify(r.issues.map(x=>x.t)));
+  const e1=S.findIndex(s=>s.m===2&&s.b===3),e2=e1+1;
+  assert.equal(S[e1].dur,0.5);assert.equal(S[e2].b,3.5);
+  // move the first eighth a third away from its predecessor -> eighthStep
+  const bad=JSON.parse(JSON.stringify(sol)),k=G.skey(S[e1]),prev=sol[G.skey(S[e1-1])];
+  bad[k]={s:prev.s+2,a:0};
+  r=G.analyze(ctx(bad));
+  assert(ids(r).includes('eighthStep'),ids(r).join(','));
+});
+t('eighth notes: not offered in the first bar, flagged in the cadence',()=>{
+  assert(!G.PAT_FIRST.some(G.hasEighth));
+  const cf=G.FUX_NOTES.dorian,n=cf.length,rh=G.defaultRhythm(n);rh[n-2]='qqqee';
+  const S=G.buildSlots(5,n,rh,[]);
+  const cp={};S.filter(G.editable).forEach(s=>{cp[G.skey(s)]={s:cf[s.m].s+4,a:0};});
+  const r=G.analyze({sp:5,cf,above:true,slots:S,vals:G.valsOf(S,cp),rhythm:rh,ties:[]});
+  assert(ids(r).includes('eighthPlace'));
+});
+t('eighth notes: neighbour-note dissonance is labelled',()=>{
+  // C5 (consonant 3rd? no: over F4 = 5th) -> B4 (dissonant 4th? over F4 = aug 4th) -> C5 : lower neighbour in eighths
+  const cf=G.N('F4');const S=G.buildSlots(5,3,['rh','qeeqq','w'],[]);
+  // build cf of 3 bars F4 F4 F4 with only middle bar relevant
+  const cfs=[G.N('F4'),G.N('F4'),G.N('F4')];
+  const vals={'0:2':G.N('C5'),'1:0':G.N('D5'),'1:1':G.N('C5'),'1:1.5':G.N('B4'),'1:2':G.N('C5'),'1:3':G.N('D5'),'2:0':G.N('F5')};
+  const r=G.analyze({sp:5,cf:cfs,above:true,slots:S,vals:G.valsOf(S,vals),rhythm:['rh','qeeqq','w'],ties:[]});
+  const iB=S.findIndex(s=>s.m===1&&s.b===1.5);
+  assert.equal(r.dis[iB],'刺',JSON.stringify(r.issues.map(x=>x.t)));
+});
+t('species 5 solver handles eighth-note rhythms',()=>{
+  for(const id of ['hqee','qeeh','qeeqq','qqqee']){
+    const cf=G.FUX_NOTES.aeolian,n=cf.length,rh=G.defaultRhythm(n);rh[3]=id;
+    const t0=Date.now(),sol=G.solveFor(5,cf,true,rh,[],3000);
+    assert(sol,'no solution '+id);assert(Date.now()-t0<3500);
+  }
+});
+t('eighth-step review question can be generated',()=>{
+  const q=G.makeQuestion('eighthStep');assert(q,'no question');assert.equal(q.sp,5);
+});
 console.log(`${pass} tests passed`);
