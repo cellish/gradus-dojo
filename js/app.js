@@ -72,7 +72,7 @@ function stepAt(yy){if(yy>y(28)+H+GAP/2)return Math.min(27,Math.round(SMAX-(yy-T
 const NOTE_BOTTOM=y(SMIN);
 const state={cfTemp:null,view:'practice',sp:1,mode:'dorian',above:true,cp:{},rhythm:[],ties:[],sel:0,
   hints:false,fb:'live',ivMode:'raw',checkedSig:null,compare:null,focus:[],hist:[],future:[],example:false,playing:false,playSlot:-1};
-const busy={cmp:false,gen:false,review:false,custom:false};
+const busy={cmp:false,gen:false,review:false,custom:false,fill:false};
 let review=null,stash=null,curS=[],curV=[],lastR=null,clefFit=null,drawer=null;
 const cf=()=>state.cfTemp||cfNotes(state.mode);
 const dkey=()=>`${state.sp}-${state.mode}-${state.above?'above':'below'}`;
@@ -81,6 +81,7 @@ const sig=()=>cmpKey()+'|'+JSON.stringify(state.cp);
 const ctx=()=>({sp:state.sp,cf:cf(),above:state.above,slots:curS,vals:curV,rhythm:state.rhythm,ties:state.ties});
 function showJudg(){
   if(state.view==='review')return !!(review&&review.result);
+  if(state.fill)return state.fill.checkedSig===sig();
   return state.fb==='live'||state.checkedSig===sig();
 }
 function refreshSlots(){
@@ -106,7 +107,7 @@ function loadDraft(){
   if(state.example)state.sel=3;
   else{const e=curS.findIndex((s,i)=>editable(s)&&!s.optRest&&!curV[i]);if(e>=0)state.sel=e;}
 }
-function saveDraft(){if(state.view==='review')return;store.drafts[dkey()]=snapshot();savePrefs();}
+function saveDraft(){if(state.view==='review'||state.fill)return;store.drafts[dkey()]=snapshot();savePrefs();}
 function savePrefs(){store.prefs={sp:state.sp,mode:state.mode,above:state.above,hint:state.hints,fb:state.fb,ivMode:state.ivMode,tempo:+$('#tempo').value,midi:midiOn};persist();}
 function commit(next){
   state.hist.push(snapshot());if(state.hist.length>200)state.hist.shift();state.future=[];
@@ -116,6 +117,7 @@ function undo(){if(!state.hist.length)return;state.future.push(snapshot());apply
 function redo(){if(!state.future.length)return;state.hist.push(snapshot());applySnap(state.future.pop());state.focus=[];saveDraft();render();}
 function setNote(i,note,play=true){
   const s=curS[i];if(!s)return;const root=s.tiedFrom!=null?curS[s.tiedFrom]:s;
+  if(state.fill&&state.fill.locked.has(skey(root))){toast('この音は固定です。点線の枠を埋めてください。');return;}
   const cp=JSON.parse(JSON.stringify(state.cp));
   if(note)cp[skey(root)]=note;else delete cp[skey(root)];
   const sn=snapshot();sn.cp=cp;commit(sn);if(play&&note)playSlot(root.i);
@@ -297,6 +299,7 @@ function drawStaffVF(r){
   const tt=geo.top-16,tb=geo.bottom+16;let s='';
   const box=(i,cls)=>`<rect class="${cls}" x="${geo.slotL[i]+2}" y="${tt}" width="${Math.max(6,geo.slotR[i]-geo.slotL[i]-4)}" height="${tb-tt}" rx="6"/>`;
   for(let i=0;i<S.length;i++){if(lv[i])s+=box(i,'t-'+lv[i]);if(i===state.playSlot)s+=box(i,'t-play');}
+  if(state.fill)S.forEach((sl,i)=>{if(state.fill.blanks.includes(skey(sl)))s+=box(i,'t-blank');});
   if(!state.playing)s+=box(state.sel,'t-sel');
   if(state.focus.length){const a=Math.min(...state.focus),b=Math.max(...state.focus);
     s+=`<rect class="t-focus" x="${geo.slotL[a]}" y="${tt-3}" width="${geo.slotR[b]-geo.slotL[a]}" height="${tb-tt+6}" rx="8"/>`;}
@@ -413,7 +416,7 @@ function drawPracticePanel(r){
   const {e,w,score}=scoreOf(r),st=r.stats,judge=showJudg();
   let h='';
   if(state.example)h+=`<div class="note-ex">例として、誤りを含む解答を表示しています。五線をクリックして自由に書き換えてください。</div>`;
-  if(!judge){
+  if(!judge&&!state.fill){
     const changed=state.checkedSig!=null;
     h+=`<div class="pending"><span>${r.complete?'書き終えたら答え合わせをしましょう。':`未入力 ${r.missing}音。書き終えたら答え合わせをしましょう。`}${changed?'(前回の答え合わせの後に変更があります)':''}</span>
       <button class="btn primary" type="button" id="checkBtn">答え合わせ</button></div>`;
@@ -422,7 +425,8 @@ function drawPracticePanel(r){
     h+=`<div class="verdict"><div class="big">${big}</div><div class="sub">${r.complete?`目安 ${score}点(誤り −10、注意 −3)`:`未入力 ${r.missing}音(採点は書き終えてから)`}</div></div>`;
   }
   h+=compareBox();
-  h+=`<div class="btnrow"><button class="btn primary" type="button" id="saveBtn">この解答を保存</button></div>`;
+  if(state.fill)h=fillBox(r)+h;
+  else h+=`<div class="btnrow"><button class="btn primary" type="button" id="saveBtn">この解答を保存</button></div>`;
   h+=`<dl class="stats"><div><dt>拍頭での反行の割合</dt><dd>${st.moves?Math.round(st.contra/st.moves*100)+'%':'―'}</dd></div><div><dt>途中の拍頭の完全協和</dt><dd>${st.perf}回</dd></div><div><dt>対旋律の音域</dt><dd>${st.span?st.span+'度':'―'}</dd></div><div><dt>跳躍(3度以上)</dt><dd>${st.leaps}回</dd></div></dl>`;
   if(judge){
     h+=`<h2>指摘<span>${r.issues.length}件 · クリックで該当箇所を再生</span></h2>`;
@@ -474,7 +478,7 @@ function drawHistory(){
   $('#histView').innerHTML=h;
   let p=`<h2>よく間違える規則<span>保存した解答と復習の記録</span></h2>${weakHTML(10)}`;
   p+=`<div class="btnrow"><button class="btn primary" type="button" id="goReview">苦手な規則を復習する</button></div>`;
-  const ds=DRILLS.filter(d=>store.drillStats[d.id]&&store.drillStats[d.id].n);
+  const ds=DRILLS.concat([{id:'fill',title:'穴埋め課題'}]).filter(d=>store.drillStats[d.id]&&store.drillStats[d.id].n);
   p+=`<h2>ドリルの成績<span>正解 / 回答数</span></h2>`+(ds.length?'<div class="weak">'+ds.map(d=>{const st=store.drillStats[d.id],r=st.ok/st.n;
     return `<div class="wrow"><div><div class="w-name">${esc(d.title)}</div><div class="w-meta">${st.ok}/${st.n}問正解 · 最高連続 ${st.best||0}</div></div><span></span><div class="wbar"><i style="width:${Math.max(4,r*100)}%;background:var(--imperfect)"></i></div></div>`;}).join('')+'</div>':'<p class="muted">まだドリルに答えていません。</p>');
   p+=`<h2>記録の書き出し・読み込み<span>バックアップや端末の移行に</span></h2>
@@ -522,6 +526,70 @@ function openDrawer(kind){
 }
 function closeDrawer(){if(!drawer)return;const k=drawer;drawer=null;$('#drawer').hidden=true;$('#drawerBack').hidden=true;
   const opener=document.querySelector(`[data-drawer="${k}"]`);if(opener)opener.focus();}
+
+/* ================= fill-in exercise ================= */
+function fillBox(r){
+  const f=state.fill,left=f.blanks.filter(k=>!state.cp[k]).length;
+  let h=`<div class="fillbox"><span class="k">穴埋め課題 · ${SPECIES[state.sp].name}</span><p>点線の枠の${f.blanks.length}か所を埋めて、「答え合わせ」を押してください。ほかの音は固定です。${left?`(あと${left}か所)`:''}</p>
+    <div class="btnrow"><button class="btn primary" type="button" id="fillCheck">答え合わせ</button><button class="btn" type="button" id="fillHint">ヒント(1か所)</button><button class="btn" type="button" id="fillQuit">やめる</button></div>`;
+  if(f.result){const x=f.result;
+    h+=x.ok?`<p class="res-ok">正解です。規則違反はありません${x.same?'(解答例と同じ音です)':'(解答例とは違う音ですが、これも正解です)'}。</p>`
+      :x.left?`<p class="res-ng">まだ空いている枠が${x.left}か所あります。</p>`:`<p class="res-ng">誤りが${x.errs}件あります。下の指摘を見て直してください。</p>`;}
+  return h+'</div>';
+}
+function pickBlanks(S,sol){
+  const n=cf().length,ok=s=>editable(s)&&!s.optRest&&s.m>0,keys=[];
+  const tail=S.filter(s=>ok(s)&&s.m>=n-2),mid=S.filter(s=>ok(s)&&s.m<n-2);
+  if(state.sp===4){
+    // Prefer the resolution of a dissonant suspension: that is the point of the 4th species.
+    const r=analyze({...ctx(),slots:S,vals:valsOf(S,sol)});
+    const res=S.filter((s,i)=>i>0&&r.dis[i-1]==='掛'&&ok(s)&&s.m<n-2);
+    if(res.length)keys.push(skey(G.pickOne(res)));
+  }
+  if(tail.length)keys.push(skey(G.pickOne(tail)));
+  const want=Math.random()<0.5?3:2;
+  for(const s of mid.slice().sort(()=>Math.random()-0.5)){if(keys.length>=want)break;if(!keys.includes(skey(s)))keys.push(skey(s));}
+  return keys;
+}
+async function startFill(){
+  if(state.fill||busy.fill)return;
+  busy.fill=true;render();
+  let sol=null;try{sol=await task('solve',{sp:state.sp,cf:cf(),above:state.above,rhythm:state.rhythm,ties:state.ties,ms:2500});}catch(e){sol=null;}
+  busy.fill=false;
+  if(!sol||state.view!=='practice'){if(!sol)toast('課題を作れませんでした。もう一度押してください。');render();return;}
+  const blanks=pickBlanks(curS,sol),cp=JSON.parse(JSON.stringify(sol));blanks.forEach(k=>{delete cp[k];});
+  const locked=new Set(curS.filter(s=>editable(s)&&!blanks.includes(skey(s))).map(skey));
+  state.fill={blanks,locked,answer:sol,checkedSig:null,result:null,stash:{snap:snapshot(),hist:state.hist,future:state.future,example:state.example,compare:state.compare}};
+  state.cp=cp;state.hist=[];state.future=[];state.compare=null;state.example=false;state.focus=[];
+  refreshSlots();const first=curS.filter(s=>blanks.includes(skey(s))).map(s=>s.i).sort((a,b)=>a-b)[0];if(first!=null)state.sel=first;
+  render();toast(`穴埋め課題です。${blanks.length}か所を埋めてください。`);
+}
+function quitFill(){
+  const f=state.fill;if(!f)return;state.fill=null;
+  applySnap(f.stash.snap);state.hist=f.stash.hist;state.future=f.stash.future;state.example=f.stash.example;state.compare=f.stash.compare;state.focus=[];
+}
+function checkFill(){
+  const f=state.fill;if(!f)return;const r=lastR;
+  const left=f.blanks.filter(k=>!state.cp[k]).length,errs=r.issues.filter(x=>x.lv==='err').length;
+  const ok=!left&&!errs,same=f.blanks.every(k=>state.cp[k]&&f.answer[k]&&state.cp[k].s===f.answer[k].s&&state.cp[k].a===f.answer[k].a);
+  f.checkedSig=sig();f.result={ok,left,errs,same};
+  if(!left&&!f.recorded){f.recorded=true;const st=store.drillStats.fill||(store.drillStats.fill={n:0,ok:0,streak:0,best:0});
+    st.n++;if(ok)st.ok++;st.streak=ok?(st.streak||0)+1:0;st.best=Math.max(st.best||0,st.streak);st.t=Date.now();persist();}
+  render();
+}
+function hintFill(){
+  const f=state.fill;if(!f)return;
+  const k=f.blanks.find(k=>!(state.cp[k]&&state.cp[k].s===f.answer[k].s&&state.cp[k].a===f.answer[k].a));
+  if(!k){toast('すべての枠が解答例と同じ音になっています。');return;}
+  const cp=JSON.parse(JSON.stringify(state.cp));cp[k]=f.answer[k];const sn=snapshot();sn.cp=cp;commit(sn);
+  toast('1か所に解答例の音を入れました。');
+}
+// While a fill-in exercise is open, actions that would change the exercise ask once before quitting it.
+function fillGuard(key){
+  if(!state.fill)return true;
+  if(pendingDel==='fill:'+key){pendingDel=null;quitFill();return true;}
+  armDelete('fill:'+key);toast('穴埋め課題の途中です。もう一度押すと、穴埋めをやめて実行します。');return false;
+}
 
 /* ================= drills ================= */
 const DRILLS=(window.GD&&GD.DRILLS)||[];
@@ -624,6 +692,7 @@ function render(){
   const gb=$('#genBtn');gb.disabled=busy.gen;gb.textContent=busy.gen?'作っています…':'生成する';
   $('#posAbove').setAttribute('aria-pressed',state.above);$('#posBelow').setAttribute('aria-pressed',!state.above);
   document.querySelectorAll('#spSeg button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.sp===state.sp));
+  sel.disabled=!!state.fill;$('#fillBtn').textContent=busy.fill?'作っています…':state.fill?'穴埋め中':'穴埋め';$('#fillBtn').setAttribute('aria-pressed',!!state.fill);
   $('#cfSel').value=state.mode;$('#hintChk').checked=state.hints;$('#fbSel').value=state.fb;$('#ivSel').value=state.ivMode;
 }
 
@@ -644,6 +713,7 @@ function saveAnswer(){
   persist();toast('保存しました。「記録」タブで見返せます。');
 }
 function openHistory(id){
+  if(state.fill)quitFill();
   const e=store.history.find(x=>x.id===id);if(!e)return;
   leaveReview();
   if(!cfEntry(e.mode)){
@@ -786,7 +856,8 @@ function midiNote(m){
   const note=midiToNote(m);
   if(note.s<SMIN+1||note.s>SMAX){toast(`${nameOf(note)}は五線に表示できる範囲の外です。`);return;}
   const i=state.sel;ensureAudio();setNote(i,note);
-  const j=editList().find(x=>x>i);if(j!=null){state.sel=j;state.focus=[];render();}
+  const L=state.fill?editList().filter(x=>!state.fill.locked.has(skey(curS[x]))):editList();
+  const j=L.find(x=>x>i);if(j!=null){state.sel=j;state.focus=[];render();}
 }
 async function midiEnable(auto){
   try{midiAcc=await navigator.requestMIDIAccess({sysex:false});}
@@ -859,6 +930,7 @@ document.querySelectorAll('[data-act]').forEach(b=>b.addEventListener('click',()
   if(a==='prev')selStep(-1);else if(a==='next')selStep(1);else if(a==='up')moveNote(1);else if(a==='down')moveNote(-1);
   else if(a==='sharp')setAcc(1);else if(a==='flat')setAcc(-1);else if(a==='natural')setAcc(0);else if(a==='del')setNote(state.sel,null,false);}));
 $('#edExtra').addEventListener('click',e=>{
+  if(state.fill){toast('穴埋め中はリズムやタイを変えられません。');return;}
   const t=e.target.closest('[data-tie]'),p=e.target.closest('[data-pat]');
   if(t){const m=+t.dataset.tie,ties=state.ties.slice();ties[m]=ties[m]===false?true:false;restructure(state.rhythm.slice(),ties);}
   if(p&&!p.disabled){const m=curS[state.sel].m,rh=state.rhythm.slice();if(rh[m]===p.dataset.pat)return;rh[m]=p.dataset.pat;restructure(rh,state.ties.slice());}
@@ -866,6 +938,9 @@ $('#edExtra').addEventListener('click',e=>{
 $('#panel').addEventListener('click',e=>{
   const ch=e.target.closest('[data-ch]');if(ch){answerDrill(+ch.dataset.ch);return;}
   if(e.target.id==='drNext'){newDrill();return;}
+  if(e.target.id==='fillCheck'){checkFill();return;}
+  if(e.target.id==='fillHint'){hintFill();return;}
+  if(e.target.id==='fillQuit'){quitFill();render();toast('穴埋めをやめて、元の解答に戻しました。');return;}
   if(e.target.id==='drReplay'){playSnippet();return;}
   const b=e.target.closest('[data-issue]');
   if(b&&lastR){const it=lastR.issues[+b.dataset.issue];if(!it)return;state.sel=curS[it.cols[0]].tiedFrom!=null?curS[it.cols[0]].tiedFrom:it.cols[0];render();state.focus=it.cols.slice();drawStaff(lastR);ensureAudio();playCols(it.cols);
@@ -909,6 +984,7 @@ $('#histView').addEventListener('click',e=>{
 });
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
   const v=b.dataset.view;if(v===state.view)return;if(state.playing)stopPlayback();closeDrawer();
+  if(state.fill)quitFill();
   if(v==='review'){startReview();return;}
   leaveReview();state.view=v;ioMode=null;ioMsg='';render();
   if(v==='drill'&&!drill.q&&!drill.loading)newDrill();}));
@@ -942,27 +1018,28 @@ document.addEventListener('keydown',e=>{
 });
 const spSeg=$('#spSeg');[1,2,3,4,5].forEach(k=>{const b=document.createElement('button');b.type='button';b.dataset.sp=k;
   b.innerHTML=`<b>${k}</b><small>${SPECIES[k].ratio}</small>`;b.setAttribute('aria-label',`${SPECIES[k].name}(${SPECIES[k].ratio})`);spSeg.appendChild(b);});
-spSeg.addEventListener('click',e=>{const b=e.target.closest('[data-sp]');if(!b||+b.dataset.sp===state.sp)return;if(state.playing)stopPlayback();saveDraft();state.sp=+b.dataset.sp;loadDraft();saveDraft();render();});
+spSeg.addEventListener('click',e=>{const b=e.target.closest('[data-sp]');if(!b||+b.dataset.sp===state.sp)return;if(!fillGuard('sp'))return;if(state.playing)stopPlayback();saveDraft();state.sp=+b.dataset.sp;loadDraft();saveDraft();render();});
 sel.addEventListener('change',()=>{cfMsg='';switchCF(sel.value);});
-$('#quickGen').addEventListener('click',()=>{cfMsg='';generateNew();});
+$('#quickGen').addEventListener('click',()=>{if(!fillGuard('gen'))return;cfMsg='';generateNew();});
 $('#genBtn').addEventListener('click',()=>{cfMsg='';generateNew();});
 $('#cfAdd').addEventListener('click',addCustom);
 $('#cfText').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCustom();}});
 $('#paneCf').addEventListener('click',e=>{if(e.target.id!=='cfDel')return;const id=state.mode;
   if(pendingDel!=='cf:'+id){armDelete('cf:'+id);return;}
   pendingDel=null;removeCF(id);cfMsg='';state.mode='dorian';loadDraft();saveDraft();refreshCfSelect();render();toast('定旋律を削除しました(保存した解答の記録は残ります)。');});
-function setPos(ab){if(state.above===ab)return;if(state.playing)stopPlayback();saveDraft();state.above=ab;loadDraft();saveDraft();render();}
+function setPos(ab){if(state.above===ab)return;if(!fillGuard('pos'))return;if(state.playing)stopPlayback();saveDraft();state.above=ab;loadDraft();saveDraft();render();}
 $('#posAbove').addEventListener('click',()=>setPos(true));$('#posBelow').addEventListener('click',()=>setPos(false));
 $('#playBtn').addEventListener('click',()=>playAll());
 $('#tempo').addEventListener('input',e=>{$('#tempoVal').textContent='♩ = '+e.target.value;});
 $('#tempo').addEventListener('change',()=>{if(state.view!=='review')savePrefs();});
 $('#undoBtn').addEventListener('click',undo);
 $('#redoBtn').addEventListener('click',redo);
-$('#clearBtn').addEventListener('click',()=>{if(!Object.keys(state.cp).length)return;const sn=snapshot();sn.cp={};state.sel=0;commit(sn);toast('対旋律を消去しました。「元に戻す」で戻せます。');});
+$('#clearBtn').addEventListener('click',()=>{if(!fillGuard('clear'))return;if(!Object.keys(state.cp).length)return;const sn=snapshot();sn.cp={};state.sel=0;commit(sn);toast('対旋律を消去しました。「元に戻す」で戻せます。');});
 $('#hintChk').addEventListener('change',e=>{state.hints=e.target.checked;savePrefs();render();});
 $('#fbSel').addEventListener('change',e=>{state.fb=e.target.value;state.checkedSig=null;savePrefs();render();});
 $('#ivSel').addEventListener('change',e=>{state.ivMode=e.target.value;savePrefs();render();});
-$('#cmpBtn').addEventListener('click',()=>{if(state.compare){state.compare=null;render();}else requestCompare();});
+$('#cmpBtn').addEventListener('click',()=>{if(!fillGuard('cmp'))return;if(state.compare){state.compare=null;render();}else requestCompare();});
+$('#fillBtn').addEventListener('click',()=>{if(state.fill){toast('穴埋め課題の途中です。右の「やめる」で終われます。');return;}startFill();});
 
 /* ================= boot ================= */
 loadStore();
