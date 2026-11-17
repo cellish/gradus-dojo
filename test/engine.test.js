@@ -148,4 +148,12 @@ t('grading: 3/2/1 points, escalation, global deduction, pass',()=>{
   const g3=G.grade(G.analyze(pp),pp);
   assert(g3.global.length>=1,JSON.stringify(g3));
 });
+t('contrary-motion fifths are an error worth 3 points',()=>{
+  // cf D4 -> C4 (down), cp A4 (5th) -> G5 (12th = compound 5th, up): contrary motion between perfect fifths.
+  const cf=notes('D4 C4'),S=G.buildSlots(1,2,[],[]),vals=G.valsOf(S,{'0:0':G.N('A4'),'1:0':G.N('G5')});
+  const r=G.analyze({sp:1,cf,above:true,slots:S,vals,rhythm:[],ties:[]});
+  const x=r.issues.find(i=>i.id==='antiparallel');assert(x,ids(r).join(','));assert.equal(x.lv,'err');
+  assert.equal(G.grade(r,{cf}).items.find(i=>i.id==='antiparallel').pts,3);
+  assert(!G.grade(r,{cf}).pass);
+});
 console.log(`${pass} tests passed`);

@@ -175,7 +175,7 @@ function analyze(c){
       const lab=b.dn===4?'5度':(b.d===0?'同度':'8度');
       if(a.perfect&&a.dn===b.dn){
         if(m==='similar')add('parallel','err',[i-1,i],`平行${lab}`,'完全協和音程を同じ方向に続けると、2声部がひとつの声のように聞こえます。反行か斜行で入り直します。');
-        else add('antiparallel','warn',[i-1,i],`反行による連続${lab}`,'反行でも完全協和音程が連続すると平行とほぼ同じ響きになるため、ふつうは避けます。');
+        else add('antiparallel','err',[i-1,i],`反行による連続${lab}`,'反行でも完全協和音程が続くと、平行とほぼ同じ響きになります(「反行の5度・8度」)。平行と同じく使いません。');
       }else if(m==='similar')add('hidden','err',[i-1,i],`隠伏${lab}`,'並行(同方向)の動きで完全協和音程に入っています。2声の厳格対位法では、完全協和音程には反行か斜行で入ります。');
     }
   }
@@ -292,7 +292,7 @@ function grade(r,c){
 }
 
 /* ================= solver ================= */
-const STRICT=new Set(['beatpar','comp','sixth','spacing','range','twoLeaps','antiparallel','repeat','climax','run','eighthUp','eighthMany']);
+const STRICT=new Set(['beatpar','comp','sixth','spacing','range','twoLeaps','repeat','climax','run','eighthUp','eighthMany']);
 function solve(sp,cf,above,S,rhythm,ties,limitMs){
   return solveOnce(sp,cf,above,S,rhythm,ties,limitMs*0.6,true)||solveOnce(sp,cf,above,S,rhythm,ties,limitMs*0.4,false);
 }
