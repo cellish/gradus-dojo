@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const G=window.GE;
-const {LETTERS,N,midi,nameOf,noteStr,cpy,ivName,FUX,MODES,FUX_NOTES,modeOf,SPECIES,PATTERNS,PAT_FIRST,PAT_MID,
+const {LETTERS,N,midi,nameOf,noteStr,cpy,ivName,FUX,MODES,FUX_NOTES,modeOf,SPECIES,PATTERNS,PAT_FIRST,PAT_MID,hasEighth,
   defaultRhythm,RULES,INJECT,buildSlots,skey,valsOf,editable,analyze,cfIssues,parseCF}=G;
 const LEFT=G.LEFT;
 const SAMPLE={'1-dorian-above':'A4 A4 B4 A4 B4 D5 C5 D5 D5 C5 D5'};
@@ -267,7 +267,7 @@ function drawStaffLegacy(r){
   svg.innerHTML=s;
 }
 /* ---- VexFlow による楽譜(score.js)と、その座標に重ねる表示 ---- */
-const VF_MW={1:74,2:120,3:184,4:120,5:184};
+const VF_MW={1:74,2:120,3:184,4:120,5:204};
 const VF_SC=1.2;  // VexFlow の譜表(線の間隔10)を画面で少し大きく
 let geo=null;
 const useVF=()=>!!(window.GScore&&GScore.ready());
@@ -344,11 +344,12 @@ function drawStaff(r){
 }
 
 function rhythmIcon(id){
-  const p=PATTERNS[id],W=58,Hh=30,u=(W-10)/4;let s=`<line class="r-line" x1="2" x2="${W-2}" y1="22" y2="22"/>`,b=0;
+  const p=PATTERNS[id],W=hasEighth(id)?66:58,Hh=30,u=(W-10)/4;let s=`<line class="r-line" x1="2" x2="${W-2}" y1="22" y2="22"/>`,b=0,lastE=null;
   p.d.forEach((d,k)=>{const cx=7+b*u+2,cy=22;
     if(p.rest&&k===0)s+=`<rect class="r-fill" x="${cx-4}" y="${cy-4}" width="9" height="4"/>`;
     else if(d===4)s+=`<ellipse class="r-open" cx="${cx+2}" cy="${cy}" rx="4.6" ry="3.4"/>`;
-    else s+=`<ellipse class="${d===1?'r-fill':'r-open'}" cx="${cx}" cy="${cy}" rx="3.9" ry="2.9" transform="rotate(-22 ${cx} ${cy})"/><line class="r-stem" x1="${cx+3.6}" x2="${cx+3.6}" y1="${cy-1}" y2="${cy-17}"/>`;
+    else{s+=`<ellipse class="${d<=1?'r-fill':'r-open'}" cx="${cx}" cy="${cy}" rx="3.9" ry="2.9" transform="rotate(-22 ${cx} ${cy})"/><line class="r-stem" x1="${cx+3.6}" x2="${cx+3.6}" y1="${cy-1}" y2="${cy-17}"/>`;
+      if(d===0.5){if(lastE!=null){s+=`<rect class="r-fill" x="${lastE}" y="${cy-18}" width="${cx+3.6-lastE+0.7}" height="3"/>`;lastE=null;}else lastE=cx+3.6-0.7;}}
     b+=d;});
   if(p.tie)s+=`<path class="r-tie" d="M${W-14},${Hh-3} Q${W-6},${Hh+1} ${W-1},${Hh-5}"/>`;
   return `<svg viewBox="0 0 ${W} ${Hh}" width="${W}" height="${Hh}" aria-hidden="true">${s}</svg>`;
@@ -357,7 +358,7 @@ const editList=()=>curS.filter(editable).map(s=>s.i);
 function drawEditor(r){
   const i=state.sel,s=curS[i],c=cf()[s.m],p=curV[i],v=r.iv[i],n=cf().length;
   const ivTxt=v?`<span class="chip ${(!v.cons||v.crossed)?'c-x':v.perfect?'c-p':'c-i'}">${ivName(v)}${v.crossed?'(交差)':''}</span>`:'';
-  const pos=state.sp===1||s.m===n-1?`第${s.m+1}小節`:`第${s.m+1}小節 ${s.b+1}拍目`;
+  const pos=state.sp===1||s.m===n-1?`第${s.m+1}小節`:`第${s.m+1}小節 ${beatLabel(s.b)}`;
   $('#edInfo').innerHTML=`<span class="ed-pos">${pos}</span><span>定旋律 <b>${nameOf(c)}</b></span><span>対旋律 <b>${p?nameOf(p):s.optRest?'休符':'―'}</b></span>${ivTxt}`;
   const L=editList();
   document.querySelectorAll('[data-act]').forEach(b=>{const a=b.dataset.act;
@@ -374,8 +375,9 @@ function drawEditor(r){
   if(state.sp===5&&state.view==='practice'){
     if(s.m===n-1)ex='<span>最後の小節は全音符です。</span>';
     else{ex=`<span>第${s.m+1}小節のリズム</span>`;
-      (s.m===0?PAT_FIRST:PAT_MID).forEach(id=>{const dis=PATTERNS[id].tie&&s.m>n-3;
-        ex+=`<button class="btn rbtn" type="button" data-pat="${id}" aria-label="${PATTERNS[id].lab}" title="${PATTERNS[id].lab}" aria-pressed="${state.rhythm[s.m]===id}"${dis?' disabled':''}>${rhythmIcon(id)}</button>`;});}
+      (s.m===0?PAT_FIRST:PAT_MID).forEach(id=>{const eNo=hasEighth(id)&&(s.m===0||s.m>=n-2),dis=(PATTERNS[id].tie&&s.m>n-3)||eNo;
+        const tl=PATTERNS[id].lab+(eNo?'(8分音符は最初の小節と終止では使えません)':'');
+        ex+=`<button class="btn rbtn" type="button" data-pat="${id}" aria-label="${tl}" title="${tl}" aria-pressed="${state.rhythm[s.m]===id}"${dis?' disabled':''}>${rhythmIcon(id)}</button>`;});}
   }
   $('#edExtra').innerHTML=ex;
   // 選んだ音に関わる指摘
@@ -387,8 +389,9 @@ function drawEditor(r){
   }
   $('#selIssues').innerHTML=si;
 }
+const beatLabel=b=>Number.isInteger(b)?`${b+1}拍目`:`${Math.floor(b)+1}拍目の後半`;
 function where(cols){const a=curS[Math.min(...cols)],b=curS[Math.max(...cols)];
-  const f=s=>state.sp===1||s.b===0&&curS.filter(t=>t.m===s.m).length===1?`${s.m+1}`:`${s.m+1}-${s.b+1}`;
+  const f=s=>state.sp===1||s.b===0&&curS.filter(t=>t.m===s.m).length===1?`${s.m+1}`:`${s.m+1}-${Number.isInteger(s.b)?s.b+1:Math.floor(s.b)+1+'後'}`;
   return a===b?`第${f(a)}`:`第${f(a)}〜${f(b)}`;}
 let toastT=null,toastMsg='';
 function toast(m){toastMsg=m;clearTimeout(toastT);toastT=setTimeout(()=>{toastMsg='';render();},5500);render();}
@@ -494,7 +497,7 @@ const RULE_TEXT={
   2:['2対1',['各小節の1拍目(強拍)は協和音程。','2拍目(弱拍)の不協和は経過音(前後とも同じ方向の順次進行)だけ。','弱拍なら同度も使える。','弱拍をはさんでも、拍頭どうしの平行5度・8度は避ける。','最初の小節は2分休符から始めてもよい(空けておくと休符になる)。']],
   3:['4対1',['各小節の1拍目は協和音程。','2〜4拍目の不協和は、経過音・刺繍音、またはカンビアータ(2度下行した不協和から3度下へ跳び、2度上がる)。','拍頭どうしの平行5度・8度に注意する。','最初の拍は4分休符にしてもよい。']],
   4:['掛留',['2拍目(準備、協和音)をタイで次の小節の1拍目へ持ち越す。','持ち越した音が不協和なら、2度下行して協和音に解決する。上声は7-6・4-3・9-8、下声は2-3・4-5・9-10。','持ち越した音が協和なら、どちらへ進んでもよい。','タイを切るのは、掛留がうまく続かないときだけ(五線の下の編集欄で切り替え)。','終止は上声なら7-6-8、下声なら2-3-1。']],
-  5:['華麗(混合)',['小節ごとにリズムを選ぶ(五線の下の編集欄)。2分音符・4分音符・タイを組み合わせる。','拍頭は協和音程(タイで持ち越した掛留を除く)。','4分音符の不協和は経過音・刺繍音・カンビアータ、2分音符の弱拍の不協和は経過音だけ。','タイを使った掛留を少なくとも1回入れる。','8分音符にはまだ対応していません。']]
+  5:['華麗(混合)',['小節ごとにリズムを選ぶ(五線の下の編集欄)。2分音符・4分音符・タイを組み合わせる。','拍頭は協和音程(タイで持ち越した掛留を除く)。','4分音符の不協和は経過音・刺繍音・カンビアータ、2分音符の弱拍の不協和は経過音だけ。','タイを使った掛留を少なくとも1回入れる。','8分音符は2つ1組で、弱い拍(2拍目か4拍目)の4分音符1つの代わりに使う。前の音から順次で入り、2つの間も、次の音へも順次で進む(経過音・刺繍音の形)。下行が基本。','8分音符は最初の小節と終止(最後の2小節)では使わない。1曲に1〜2組まで。']]
 };
 function drawRules(){
   const sp=RULE_TEXT[state.sp];

@@ -62,10 +62,15 @@ const PATTERNS={
   hh:{d:[2,2],lab:'2分音符2つ'}, hht:{d:[2,2],tie:1,lab:'2分音符2つ(次の小節へタイ)'},
   hqq:{d:[2,1,1],lab:'2分音符+4分音符2つ'}, qqh:{d:[1,1,2],lab:'4分音符2つ+2分音符'},
   qqht:{d:[1,1,2],tie:1,lab:'4分音符2つ+2分音符(次の小節へタイ)'}, qqqq:{d:[1,1,1,1],lab:'4分音符4つ'},
-  w:{d:[4],lab:'全音符'}, rh:{d:[2,2],rest:1,lab:'2分休符+2分音符'}, rht:{d:[2,2],rest:1,tie:1,lab:'2分休符+2分音符(次の小節へタイ)'}
+  w:{d:[4],lab:'全音符'}, rh:{d:[2,2],rest:1,lab:'2分休符+2分音符'}, rht:{d:[2,2],rest:1,tie:1,lab:'2分休符+2分音符(次の小節へタイ)'},
+  // Eighth notes come in pairs replacing one weak quarter (beat 2 or 4), following Fux/Jeppesen.
+  hqee:{d:[2,1,0.5,0.5],lab:'2分音符+4分音符+8分音符2つ'}, qeeh:{d:[1,0.5,0.5,2],lab:'4分音符+8分音符2つ+2分音符'},
+  qeeht:{d:[1,0.5,0.5,2],tie:1,lab:'4分音符+8分音符2つ+2分音符(次の小節へタイ)'},
+  qeeqq:{d:[1,0.5,0.5,1,1],lab:'4分音符+8分音符2つ+4分音符2つ'}, qqqee:{d:[1,1,1,0.5,0.5],lab:'4分音符3つ+8分音符2つ'}
 };
 const PAT_FIRST=['rht','rh','hh','hht','hqq','qqh','qqht','qqqq'];
-const PAT_MID=['hh','hht','hqq','qqh','qqht','qqqq','w'];
+const PAT_MID=['hh','hht','hqq','qqh','qqht','qqqq','w','hqee','qeeh','qeeht','qeeqq','qqqee'];
+const hasEighth=id=>!!(PATTERNS[id]&&PATTERNS[id].d.includes(0.5));
 function defaultRhythm(n){
   const cyc=['hqq','qqqq','qqht','hh','qqh','hht','hh'],r=[];
   for(let m=0;m<n;m++)r[m]=m===0?'rht':m===n-1?'w':cyc[(m-1)%cyc.length];
@@ -77,10 +82,11 @@ const RULES={
   antiparallel:'反行による連続5度・8度', hidden:'隠伏5度・8度', beatpar:'拍頭間の平行', run:'3度・6度の連続',
   chromatic:'半音階的進行', repeat:'同音反復', leapBig:'7度・オクターヴを超える跳躍', leapAug:'増・減音程の跳躍',
   sixth:'6度の跳躍', comp:'跳躍後の埋め合わせ', twoLeaps:'同方向の連続跳躍', range:'対旋律の音域', climax:'最高音の重複',
-  ficta:'変化音の使用', cadStep:'終止の順次進行', leading:'終止前の導音', cadForm:'終止の形', syncBreak:'シンコペーションの中断', rhythm:'リズムの変化'
+  ficta:'変化音の使用', cadStep:'終止の順次進行', leading:'終止前の導音', cadForm:'終止の形', syncBreak:'シンコペーションの中断', rhythm:'リズムの変化',
+  eighthStep:'8分音符の順次進行', eighthPlace:'8分音符の位置', eighthUp:'8分音符の上行', eighthMany:'8分音符が多すぎる'
 };
 const INJECT={parallel:[1,2,3,5],hidden:[1,2,3,5],dissonance:[1,2,3,5],weakdis:[2,3,5],susp:[4],prep:[4],unison:[1,2],
-  leapBig:[1,2,3],leapAug:[1,2,3],leading:[1,2,3,4],repeat:[1,2],comp:[1,2],beatpar:[2],first:[1,2],sixth:[1,2],twoLeaps:[1,2,3],cadStep:[1,2]};
+  leapBig:[1,2,3],leapAug:[1,2,3],leading:[1,2,3,4],repeat:[1,2],comp:[1,2],beatpar:[2],first:[1,2],sixth:[1,2],twoLeaps:[1,2,3],cadStep:[1,2],eighthStep:[5]};
 
 /* ================= slots ================= */
 function buildSlots(sp,n,rhythm,ties){
@@ -141,10 +147,11 @@ function analyze(c){
           if(p>=0&&nx>=0){
             const d1=V[i].s-V[p].s,d2=V[nx].s-V[i].s;
             if(Math.abs(d1)===1&&Math.abs(d2)===1&&Math.sign(d1)===Math.sign(d2))kind='経';
-            else if(s.dur===1&&Math.abs(d1)===1&&Math.abs(d2)===1)kind='刺';
+            else if(s.dur<=1&&Math.abs(d1)===1&&Math.abs(d2)===1)kind='刺';
             else if(s.dur===1&&d1===-1&&d2===-2){const n2=nxt(nx);if(n2===-2||n2===-1||(n2>=0&&V[n2].s-V[nx].s===1))kind='カ';}
           }
           if(kind)dis[i]=kind;
+          else if(s.dur===0.5){} // reported once per pair by eighthStep below
           else add('weakdis','err',[i],`弱拍の不協和(${ivName(v)})`,s.dur===1
             ?'弱拍の不協和音は、経過音(同じ方向に順次進行)、刺繍音(隣の音へ行って戻る)、カンビアータ(2度下行した不協和から3度下へ跳び、2度上がる)に限ります。'
             :'2分音符の弱拍に置ける不協和音は、経過音(前後とも同じ方向への順次進行)だけです。');
@@ -235,6 +242,20 @@ function analyze(c){
         :`定旋律が${cfStep<0?'上から':'下から'}終止音に入るので、終止の直前は3度(または10度)にして、2声部が反対方向へ順次進行して同度(またはオクターヴ)に入ります。`);
     }
   }
+  if(sp===5){
+    const pairs=[];for(let i=0;i+1<L;i++)if(S[i].dur===0.5&&S[i+1].dur===0.5&&S[i].m===S[i+1].m&&S[i].b%1===0){pairs.push([i,i+1]);i++;}
+    pairs.forEach(([i,j])=>{const m=S[i].m;
+      if(m===0||m>=n-2)add('eighthPlace','err',[i,j],'8分音符の位置','8分音符は最初の小節と終止(最後の2小節)では使いません。途中の小節の弱い拍で使います。');
+      if(!V[i]||!V[j])return;
+      const p=prv(i),nx=nxt(j),bad=[];
+      if(p>=0&&Math.abs(V[i].s-V[p].s)!==1)bad.push(p);
+      if(Math.abs(V[j].s-V[i].s)!==1)bad.push(i);
+      if(nx>=0&&Math.abs(V[nx].s-V[j].s)!==1)bad.push(nx);
+      if(bad.length)add('eighthStep','err',[...new Set([i,j,...bad])].sort((a,b)=>a-b),'8分音符の順次進行','8分音符の組は、前の音から順次進行で入り、2つの間も順次、次の音へも順次進行で出ます(経過音・刺繍音の形)。跳躍や同音反復は使いません。');
+      else if(V[j].s>V[i].s)add('eighthUp','warn',[i,j],'8分音符の上行','8分音符の組は下行が基本です。上行は使えますが、下行で書けないか確かめましょう。');
+    });
+    if(pairs.length>=3)add('eighthMany','warn',pairs.flat(),`8分音符の組が${pairs.length}つ`,'8分音符は飾りなので、1曲に1〜2組までにします。');
+  }
   if(sp===4){const br=[];for(let m=0;m<=n-3;m++)if(c.ties&&c.ties[m]===false)br.push(at[m+':2']);
     if(br.length>2)add('syncBreak','warn',br,`タイを${br.length}回切っています`,'第4類ではシンコペーション(タイ)を続けるのが基本です。切るのは、掛留がうまく続かないときだけにします。');}
   if(sp===5&&c.rhythm){const mid=c.rhythm.slice(1,n-1);
@@ -250,7 +271,7 @@ function analyze(c){
 }
 
 /* ================= solver ================= */
-const STRICT=new Set(['beatpar','comp','sixth','spacing','range','twoLeaps','antiparallel','repeat','climax','run']);
+const STRICT=new Set(['beatpar','comp','sixth','spacing','range','twoLeaps','antiparallel','repeat','climax','run','eighthUp','eighthMany']);
 function solve(sp,cf,above,S,rhythm,ties,limitMs){
   return solveOnce(sp,cf,above,S,rhythm,ties,limitMs*0.6,true)||solveOnce(sp,cf,above,S,rhythm,ties,limitMs*0.4,false);
 }
@@ -273,6 +294,7 @@ function solveOnce(sp,cf,above,S,rhythm,ties,limitMs,strict){
       const note={s:st,a},v=vInfo(cfN,note,above);if(v.crossed||(strict&&v.d>9))continue;
       const ad=prev?Math.abs(st-prev.s):0;
       if(prev&&(ad===0||ad===6||ad>7))continue;
+      if(s.dur===0.5&&prev&&ad!==1)continue;
       if(!v.cons&&(mustCons||ad!==1))continue;
       if(!v.cons&&s.dur>=4)continue;
       cands.push({note,r:Math.random()+(ad<=1?0:ad===2?(sp===3?0.5:0.3):ad===7?1.4:0.9)+(v.cons?0:0.35)});
@@ -406,7 +428,9 @@ function makeQuestion(rule,prefSp){
     if(Math.random()<0.5){const k=FUX[Math.floor(Math.random()*FUX.length)][0];c=FUX_NOTES[k];label=`${MODES[k].name}(フックス)`;}
     else{const m=pickOne(Object.keys(MODES));c=genCF(m,9+Math.floor(Math.random()*4));if(!c)continue;label=`${MODES[m].name}(自動生成)`;}
     const above=Math.random()<0.6,n=c.length;
-    const rhythm=sp===5?defaultRhythm(n):[],ties=[],S=buildSlots(sp,n,rhythm,ties);
+    const rhythm=sp===5?defaultRhythm(n):[],ties=[];
+    if(sp===5&&rule.startsWith('eighth')&&n>=6)rhythm[2]='hqee';
+    const S=buildSlots(sp,n,rhythm,ties);
     const sol=solve(sp,c,above,S,rhythm,ties,1400);if(!sol)continue;
     const base={sp,cf:c,above,slots:S,rhythm,ties};
     const cands=[];
@@ -430,7 +454,7 @@ function solveFor(sp,cf,above,rhythm,ties,ms){
 }
 
 const GE={LEFT,LETTERS,PC,QN,N,midi,nameOf,noteStr,cpy,interval,ivName,vInfo,motion,
-  FUX,MODES,FINAL_MODE,FUX_NOTES,modeOf,SPECIES,PATTERNS,PAT_FIRST,PAT_MID,defaultRhythm,RULES,INJECT,
+  FUX,MODES,FINAL_MODE,FUX_NOTES,modeOf,SPECIES,PATTERNS,PAT_FIRST,PAT_MID,hasEighth,defaultRhythm,RULES,INJECT,
   buildSlots,skey,valsOf,editable,analyze,STRICT,solve,solveOnce,solveFor,
   pickOne,melBad,cfIssues,genCF,cfSolvable,parseCF,genCFChecked,makeQuestion};
 root.GE=GE;
