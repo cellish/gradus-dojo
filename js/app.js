@@ -18,6 +18,7 @@ function runLocal(type,a){
   if(type==='genCF')return G.genCFChecked(a.mode,a.len,a.sps,a.budget||9000);
   if(type==='question')return G.makeQuestion(a.rule,a.prefSp);
   if(type==='cfSolvable')return G.cfSolvable(a.notes,a.sps,a.ms||600);
+  if(type==='drill')return window.GD.make(a.id);
   throw new Error('unknown task '+type);
 }
 function failoverWorker(){
@@ -38,8 +39,8 @@ function task(type,args){
 
 /* ================= storage ================= */
 const STORE='gradus-v2';
-let store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0};
-function normStore(){store.drafts=store.drafts||{};store.prefs=store.prefs||{};store.history=store.history||[];store.stats=store.stats||{};store.cfs=store.cfs||[];store.cfSeq=store.cfSeq||0;}
+let store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{}};
+function normStore(){store.drafts=store.drafts||{};store.prefs=store.prefs||{};store.history=store.history||[];store.stats=store.stats||{};store.cfs=store.cfs||[];store.cfSeq=store.cfSeq||0;store.drillStats=store.drillStats||{};}
 function loadStore(){
   try{
     const s=JSON.parse(localStorage.getItem(STORE)||'null');
@@ -473,6 +474,9 @@ function drawHistory(){
   $('#histView').innerHTML=h;
   let p=`<h2>よく間違える規則<span>保存した解答と復習の記録</span></h2>${weakHTML(10)}`;
   p+=`<div class="btnrow"><button class="btn primary" type="button" id="goReview">苦手な規則を復習する</button></div>`;
+  const ds=DRILLS.filter(d=>store.drillStats[d.id]&&store.drillStats[d.id].n);
+  p+=`<h2>ドリルの成績<span>正解 / 回答数</span></h2>`+(ds.length?'<div class="weak">'+ds.map(d=>{const st=store.drillStats[d.id],r=st.ok/st.n;
+    return `<div class="wrow"><div><div class="w-name">${esc(d.title)}</div><div class="w-meta">${st.ok}/${st.n}問正解 · 最高連続 ${st.best||0}</div></div><span></span><div class="wbar"><i style="width:${Math.max(4,r*100)}%;background:var(--imperfect)"></i></div></div>`;}).join('')+'</div>':'<p class="muted">まだドリルに答えていません。</p>');
   p+=`<h2>記録の書き出し・読み込み<span>バックアップや端末の移行に</span></h2>
     <div class="io"><div class="btnrow"><button class="btn" type="button" id="exFile">ファイルに保存</button><button class="btn" type="button" id="exText">テキストで表示</button><button class="btn" type="button" id="imOpen">読み込む…</button></div>`;
   if(ioMode==='export')p+=`<textarea id="ioText" readonly aria-label="書き出した記録">${esc(ioText)}</textarea><div class="btnrow"><button class="btn" type="button" id="exCopy">コピー</button></div>`;
@@ -519,10 +523,78 @@ function openDrawer(kind){
 function closeDrawer(){if(!drawer)return;const k=drawer;drawer=null;$('#drawer').hidden=true;$('#drawerBack').hidden=true;
   const opener=document.querySelector(`[data-drawer="${k}"]`);if(opener)opener.focus();}
 
+/* ================= drills ================= */
+const DRILLS=(window.GD&&GD.DRILLS)||[];
+const drill={id:DRILLS.length?DRILLS[0].id:null,q:null,answered:null,loading:false,token:0,streak:0};
+const drillInfo=id=>DRILLS.find(d=>d.id===id)||{title:'',desc:''};
+function vfCol(){return {ink:cssv('--ink'),staff:cssv('--staff'),cp:cssv('--accent'),faint:cssv('--faint')};}
+function snippetVals(sc,answered){return sc.vals.map((v,i)=>{if(!answered&&sc.hide.includes(i))return null;if(!answered&&sc.pre&&sc.pre[i])return sc.pre[i];return v;});}
+function drawSnippet(svg,sc,answered){
+  if(!useVF()){svg.innerHTML='';svg.removeAttribute('width');return;}
+  const vals=snippetVals(sc,answered);
+  const g=GScore.engrave({cf:sc.cf,slots:sc.slots.map(s=>({m:s.m,b:s.b,dur:s.dur,rest:!!s.rest,optRest:false,tiedFrom:s.tiedFrom,tieTo:s.tieTo})),
+    vals,above:sc.above,MW:VF_MW[sc.sp]||120,col:vfCol()});
+  svg.setAttribute('width',Math.round(g.W*VF_SC));svg.setAttribute('height',Math.round(g.H*VF_SC));svg.setAttribute('viewBox',`0 0 ${g.W} ${g.H}`);
+  const tt=g.top-16,tb=g.bottom+16;let h='';
+  sc.marks.forEach(i=>{h+=`<rect class="t-sel" x="${g.slotL[i]+2}" y="${tt}" width="${Math.max(6,g.slotR[i]-g.slotL[i]-4)}" height="${tb-tt}" rx="6"/>`;});
+  h+=`<g class="vfw">${g.inner}</g>`;
+  svg.innerHTML=h;
+}
+function playSnippet(){
+  const q=drill.q;if(!q||!ensureAudio())return;stopAll();
+  const sc=q.score,vals=snippetVals(sc,drill.answered!=null),t0=ac.currentTime+0.05;
+  if(q.play==='dyad'){tone(freq(sc.cf[0]),t0,1.8,-0.3);if(vals[0])tone(freq(vals[0]),t0,1.8,0.3);return;}
+  const bt=60/Math.max(60,Math.min(160,+$('#tempo').value||96)),n=sc.cf.length;
+  sc.cf.forEach((c,m)=>tone(freq(c),t0+m*4*bt,(m===n-1?5:4)*bt*0.97,-0.3));
+  sc.slots.forEach((s,i)=>{if(!vals[i]||s.tiedFrom!=null)return;let d=s.dur;if(s.tieTo!=null)d+=sc.slots[s.tieTo].dur;
+    tone(freq(vals[i]),t0+(s.m*4+s.b)*bt,(s.m===n-1?5:d)*bt*0.95,0.3);});
+}
+async function newDrill(id){
+  if(id)drill.id=id;drill.q=null;drill.answered=null;drill.loading=true;const tk=++drill.token;render();
+  let q=null;try{q=await task('drill',{id:drill.id});}catch(e){q=null;}
+  if(tk!==drill.token)return;
+  drill.loading=false;drill.q=q;
+  if(!q)toast('問題を作れませんでした。もう一度「次の問題」を押してください。');
+  render();
+  if(q&&q.hideScore)playSnippet();
+}
+function answerDrill(k){
+  const q=drill.q;if(!q||drill.answered!=null||!q.choices[k])return;
+  drill.answered=k;const ok=q.choices[k].ok;
+  drill.streak=ok?drill.streak+1:0;
+  const st=store.drillStats[q.id]||(store.drillStats[q.id]={n:0,ok:0,streak:0,best:0});
+  st.n++;if(ok)st.ok++;st.streak=ok?(st.streak||0)+1:0;st.best=Math.max(st.best||0,st.streak);st.t=Date.now();persist();
+  render();
+}
+function drawDrill(){
+  $('#drillList').innerHTML=DRILLS.map(d=>{const st=store.drillStats[d.id];
+    return `<button type="button" data-drill="${d.id}" aria-pressed="${d.id===drill.id}" title="${esc(d.desc)}">${esc(d.title)}${st&&st.n?`<small>${st.ok}/${st.n}</small>`:''}</button>`;}).join('');
+  $('#drDesc').textContent=drillInfo(drill.id).desc;
+  const q=drill.q,answered=drill.answered!=null,svg=$('#drStaff');
+  const hidden=!!(q&&q.hideScore&&!answered);
+  $('#drHidden').hidden=!hidden;svg.style.display=hidden||!q?'none':'';
+  $('#drPlay').disabled=!q;
+  if(q&&!hidden)drawSnippet(svg,q.score,answered);
+  let h='';
+  if(drill.loading||!q)h=`<p class="muted">${drill.loading?'問題を作っています…':'上の一覧からドリルを選んでください。'}</p>`;
+  else{
+    h+=`<p class="dq">${esc(q.prompt)}</p><div class="dch">`+q.choices.map((c,i)=>{
+      const cls=answered?(c.ok?'right':(i===drill.answered?'wrong':'')):'';
+      return `<button type="button" data-ch="${i}" class="${cls}"${answered?' disabled':''}><kbd>${i+1}</kbd>${esc(c.label)}</button>`;}).join('')+'</div>';
+    if(answered){const ok=q.choices[drill.answered].ok;
+      h+=`<p class="dres ${ok?'good':'bad'}">${ok?'正解です。':'不正解です。正しい答えは「'+esc(q.choices.find(c=>c.ok).label)+'」です。'}</p><p class="dexp">${esc(q.explain)}</p>`;
+      h+=`<div class="btnrow"><button class="btn primary" type="button" id="drNext">次の問題(Enter)</button>${q.play?'<button class="btn" type="button" id="drReplay">もう一度聴く</button>':''}</div>`;}
+    const st=store.drillStats[drill.id];
+    h+=`<p class="dstreak">連続正解 ${drill.streak}${st&&st.n?` · この種類の成績 ${st.ok}/${st.n}(最高連続 ${st.best||0})`:''}</p>`;
+  }
+  h+=`<p class="toast" role="status">${toastMsg}</p>`;
+  $('#panel').innerHTML=h;
+}
+
 /* ================= render ================= */
 function drawMbar(r){
   const b=$('#mbar');
-  if(state.view==='history'){b.hidden=true;return;}
+  if(state.view==='history'||state.view==='drill'){b.hidden=true;return;}
   b.hidden=false;
   if(state.view==='review'){b.innerHTML=`<span>復習:${review?RULES[review.rule]:'問題を作っています…'}</span><span>操作へ ↓</span>`;return;}
   const {e,w}=scoreOf(r);
@@ -535,10 +607,11 @@ function render(){
   const r=analyze(ctx());lastR=r;const v=state.view;
   document.querySelectorAll('[data-show]').forEach(el=>{el.hidden=!el.dataset.show.split(' ').includes(v);});
   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-selected',b.dataset.view===v));
-  $('#subTitle').textContent=v==='history'?'記録':v==='review'?`復習 · ${SPECIES[state.sp].name}`:`${SPECIES[state.sp].name} · ${SPECIES[state.sp].ratio}`;
+  $('#subTitle').textContent=v==='drill'?`ドリル · ${drillInfo(drill.id).title}`:v==='history'?'記録':v==='review'?`復習 · ${SPECIES[state.sp].name}`:`${SPECIES[state.sp].name} · ${SPECIES[state.sp].ratio}`;
   $('#rulesBtn').textContent=`${SPECIES[state.sp].name}の規則`;
   drawMbar(r);
   if(v==='history'){drawHistory();return;}
+  if(v==='drill'){drawDrill();return;}
   drawStaff(r);drawEditor(r);
   if(drawer==='rules')drawRules();
   if(drawer==='cf')drawCfTools();
@@ -694,7 +767,7 @@ function importFrom(text){
   let o;try{o=JSON.parse(text);}catch(e){ioMsg='読み込めませんでした。書き出したときのテキストをそのまま貼り付けてください。';render();return;}
   const d=o&&o.app==='gradus'&&o.data?o.data:null;
   if(!d||typeof d!=='object'||!Array.isArray(d.history||[])){ioMsg='Gradus の記録として読み取れませんでした。';render();return;}
-  store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,...d};normStore();persist();
+  store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...d};normStore();persist();
   ioMode=null;ioText='';ioMsg='';pendingDel=null;
   const pf=store.prefs;if(SPECIES[pf.sp])state.sp=pf.sp;state.mode=cfEntry(pf.mode)?pf.mode:'dorian';state.above=pf.above!==false;
   refreshCfSelect();loadDraft();toast(`記録を読み込みました(保存した解答 ${store.history.length}件)。`);
@@ -791,6 +864,9 @@ $('#edExtra').addEventListener('click',e=>{
   if(p&&!p.disabled){const m=curS[state.sel].m,rh=state.rhythm.slice();if(rh[m]===p.dataset.pat)return;rh[m]=p.dataset.pat;restructure(rh,state.ties.slice());}
 });
 $('#panel').addEventListener('click',e=>{
+  const ch=e.target.closest('[data-ch]');if(ch){answerDrill(+ch.dataset.ch);return;}
+  if(e.target.id==='drNext'){newDrill();return;}
+  if(e.target.id==='drReplay'){playSnippet();return;}
   const b=e.target.closest('[data-issue]');
   if(b&&lastR){const it=lastR.issues[+b.dataset.issue];if(!it)return;state.sel=curS[it.cols[0]].tiedFrom!=null?curS[it.cols[0]].tiedFrom:it.cols[0];render();state.focus=it.cols.slice();drawStaff(lastR);ensureAudio();playCols(it.cols);
     if(window.matchMedia('(max-width:920px)').matches)$('.staff-card').scrollIntoView({behavior:'smooth',block:'start'});return;}
@@ -824,6 +900,8 @@ $('#panel').addEventListener('change',e=>{
   const fr=new FileReader();fr.onload=()=>{ioText=String(fr.result||'');ioMsg='ファイルを読み込みました。内容を確かめてから「読み込んで置き換える」を押してください。';render();};fr.readAsText(e.target.files[0]);
 });
 $('#panel').addEventListener('input',e=>{if(e.target.id==='imText')ioText=e.target.value;});
+$('#drillList').addEventListener('click',e=>{const b=e.target.closest('[data-drill]');if(!b)return;drill.streak=0;newDrill(b.dataset.drill);});
+$('#drPlay').addEventListener('click',playSnippet);
 $('#histView').addEventListener('click',e=>{
   const o=e.target.closest('[data-hopen]'),d=e.target.closest('[data-hdel]');
   if(o)openHistory(o.dataset.hopen);
@@ -832,13 +910,20 @@ $('#histView').addEventListener('click',e=>{
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
   const v=b.dataset.view;if(v===state.view)return;if(state.playing)stopPlayback();closeDrawer();
   if(v==='review'){startReview();return;}
-  leaveReview();state.view=v;ioMode=null;ioMsg='';render();}));
+  leaveReview();state.view=v;ioMode=null;ioMsg='';render();
+  if(v==='drill'&&!drill.q&&!drill.loading)newDrill();}));
 document.querySelectorAll('[data-drawer]').forEach(b=>b.addEventListener('click',()=>{if(drawer===b.dataset.drawer)closeDrawer();else openDrawer(b.dataset.drawer);}));
 $('#drawerClose').addEventListener('click',closeDrawer);
 $('#drawerBack').addEventListener('click',closeDrawer);
 $('#mbar').addEventListener('click',()=>{$('#panel').scrollIntoView({behavior:'smooth',block:'start'});});
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&drawer){closeDrawer();return;}
+  if(state.view==='drill'&&!drawer){
+    const tg=(document.activeElement&&document.activeElement.tagName)||'';if(['SELECT','INPUT','TEXTAREA'].includes(tg))return;
+    if(/^[1-4]$/.test(e.key)){e.preventDefault();answerDrill(+e.key-1);}
+    else if(e.key==='Enter'&&drill.answered!=null){e.preventDefault();newDrill();}
+    else if(e.key===' '||e.key==='p'){e.preventDefault();playSnippet();}
+    return;}
   if(state.view==='history'||drawer)return;
   const tag=(document.activeElement&&document.activeElement.tagName)||'';
   if(['SELECT','INPUT','TEXTAREA'].includes(tag))return;

@@ -26,6 +26,7 @@
     </header>
     <nav class="tabs" role="tablist" aria-label="画面">
       <button type="button" role="tab" data-view="practice">練習</button>
+      <button type="button" role="tab" data-view="drill">ドリル</button>
       <button type="button" role="tab" data-view="review">復習</button>
       <button type="button" role="tab" data-view="history">記録</button>
     </nav>
@@ -92,6 +93,15 @@
         </div>
       </div>
 
+      <div class="card drill-card" id="drillCard" data-show="drill">
+        <div class="drill-list" id="drillList" role="group" aria-label="ドリルの種類"></div>
+        <div class="drill-stage">
+          <div class="drill-tools"><button class="btn primary" id="drPlay" type="button">▶ 聴く</button><span class="muted" id="drDesc"></span></div>
+          <div class="staff-scroll"><svg id="drStaff" role="img" aria-label="問題の楽譜"></svg></div>
+          <p class="drill-hidden" id="drHidden" hidden>楽譜は答えた後に表示します。▶ で聴いて答えてください。</p>
+        </div>
+      </div>
+
       <div class="card hist" id="histView" data-show="history"></div>
     </div>
 
@@ -135,6 +145,7 @@
 
 <script src="vendor/vexflow-bravura.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/drills.js"></script>
 <script src="js/score.js"></script>
 <script src="js/app.js"></script>
 <script>

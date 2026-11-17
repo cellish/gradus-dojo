@@ -8,6 +8,7 @@ const SHELL = [
   './manifest.webmanifest',
   './css/app.css',
   './js/engine.js',
+  './js/drills.js',
   './js/score.js',
   './vendor/vexflow-bravura.js',
   './js/app.js',
