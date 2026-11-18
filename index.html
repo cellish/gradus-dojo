@@ -25,6 +25,7 @@
       <h1>Gradus 対位法ドリル<small id="subTitle">第1類 · 1対1</small></h1>
     </header>
     <nav class="tabs" role="tablist" aria-label="画面">
+      <button type="button" role="tab" data-view="learn">学ぶ</button>
       <button type="button" role="tab" data-view="practice">練習</button>
       <button type="button" role="tab" data-view="drill">ドリル</button>
       <button type="button" role="tab" data-view="review">復習</button>
@@ -94,6 +95,14 @@
         </div>
       </div>
 
+      <div class="card learn-card" id="learnCard" data-show="learn">
+        <div class="learn-nav">
+          <div class="chips" id="lnSp" role="group" aria-label="類"></div>
+          <div class="chips sec" id="lnSec" role="group" aria-label="節"></div>
+        </div>
+        <div class="learn-body" id="lnBody"></div>
+      </div>
+
       <div class="card drill-card" id="drillCard" data-show="drill">
         <div class="drill-list" id="drillList" role="group" aria-label="ドリルの種類"></div>
         <div class="drill-stage">
@@ -110,7 +119,7 @@
   </div>
 </div>
 
-<footer class="credits">© 2026 jun　All rights reserved.　楽譜の描画:VexFlow(MIT License)、楽譜フォント:Bravura・Academico(SIL Open Font License 1.1)。定旋律はフックス『Gradus ad Parnassum』(1725)によります。</footer>
+<footer class="credits">© 2026 jun　All rights reserved.　楽譜の描画:VexFlow(MIT License)、楽譜フォント:Bravura・Academico(SIL Open Font License 1.1)。定旋律と模範例はフックス『Gradus ad Parnassum』(1725)とその18世紀の英訳によります。</footer>
 
 <!-- 画面下の指摘バー(スマホ) -->
 <button type="button" class="mbar" id="mbar" hidden></button>
@@ -147,6 +156,7 @@
 <script src="vendor/vexflow-bravura.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/drills.js"></script>
+<script src="js/lessons.js"></script>
 <script src="js/score.js"></script>
 <script src="js/app.js"></script>
 <script>

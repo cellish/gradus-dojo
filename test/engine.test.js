@@ -156,4 +156,36 @@ t('contrary-motion fifths are an error worth 3 points',()=>{
   assert.equal(G.grade(r,{cf}).items.find(i=>i.id==='antiparallel').pts,3);
   assert(!G.grade(r,{cf}).pass);
 });
+t('opening rule applies only to the first bar, not to the first note written',()=>{
+  const cf=G.FUX_NOTES.dorian,n=cf.length,S=G.buildSlots(1,n,[],[]),cp={};
+  cp[G.skey(S[n-2])]=G.N('C#5');cp[G.skey(S[n-1])]=G.N('D5');
+  let r=G.analyze({sp:1,cf,above:true,slots:S,vals:G.valsOf(S,cp),rhythm:[],ties:[]});
+  assert(!ids(r).includes('first'),ids(r).join(','));
+  cp[G.skey(S[0])]=G.N('F4');
+  r=G.analyze({sp:1,cf,above:true,slots:S,vals:G.valsOf(S,cp),rhythm:[],ties:[]});
+  assert(ids(r).includes('first'),'third at the start must be flagged');
+});
+t('lessons: Fux examples, bad examples and guided tasks',()=>{
+  const L=require('../js/lessons.js');
+  for(const sp of [1,2,3,4,5]){const les=L.LESSONS[sp];
+    assert(les.intro.length>=3&&les.points.length>=3,'text sp'+sp);
+    les.examples.forEach(ex=>{
+      const b=L.build(sp,ex),r=L.analyzeBuilt(b);
+      assert(r.complete,`sp${sp} ${ex.title} incomplete`);
+      const errs=r.issues.filter(x=>x.lv==='err'&&!ex.allow.includes(x.id));
+      assert.equal(errs.length,0,`sp${sp} ${ex.title}: ${errs.map(x=>x.id)}`);
+      // every allowed rule is really needed (keeps the annotations honest)
+      for(const a of ex.allow)assert(r.issues.some(x=>x.id===a),`sp${sp} ${ex.title}: allow ${a} unused`);
+      for(const nt of ex.notes)assert(L.slotAt(b,nt.at)>=0,`sp${sp} ${ex.title}: note at ${nt.at}`);
+    });
+    les.bad.forEach(bd=>{
+      const orig=L.build(sp,les.examples[bd.ex]),bb=L.build(sp,les.examples[bd.ex],bd.change);
+      const base=new Set(L.analyzeBuilt(orig).issues.map(x=>x.id+':'+x.cols));
+      const added=L.analyzeBuilt(bb).issues.filter(x=>!base.has(x.id+':'+x.cols));
+      assert(added.some(x=>x.id===bd.rule),`sp${sp} bad "${bd.title}" lacks ${bd.rule}`);
+    });
+    const g=les.guided,cf=G.FUX_NOTES[g.mode];
+    assert(G.solveFor(sp,cf,g.above,sp===5?G.defaultRhythm(cf.length):[],[],3000),`guided sp${sp} unsolvable`);
+  }
+});
 console.log(`${pass} tests passed`);

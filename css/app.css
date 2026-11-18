@@ -284,6 +284,43 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .fillbox p{margin:0;font-size:13.5px}
 .fillbox .k{font-size:11px;letter-spacing:.06em;color:var(--muted)}
 
+/* ---- 学ぶ ---- */
+.learn-card{display:flex;flex-direction:column}
+.learn-nav{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-bottom:1px solid var(--hair);background:var(--surface-2);border-radius:12px 12px 0 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:999px;padding:5px 12px;min-height:36px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}
+.chips button small{font-size:11px;color:var(--muted)}
+.chips button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.chips button[aria-pressed="true"] small{color:inherit;opacity:.85}
+.chips.sec button{border-radius:8px}
+.learn-body{padding:8px 0 20px;display:flex;flex-direction:column;gap:6px}
+.lesson{padding:8px 18px;max-width:42em}
+.lesson h2{font-family:"Shippori Mincho",serif;font-size:24px;margin:8px 0 10px}
+.lesson h3{font-size:14px;margin:18px 0 6px}
+.lesson p{font-size:15.5px;line-height:1.85;margin:0 0 12px}
+.lpoints{margin:0;display:grid;gap:10px}
+.lpoints dt{font-weight:700;font-size:14px}
+.lpoints dd{margin:2px 0 0;font-size:14px;color:var(--muted);line-height:1.7}
+.lsrc{margin:6px 18px 0;font-size:12.5px;color:var(--muted)}
+.lex{padding:14px 0 12px;border-top:1px solid var(--hair);display:flex;flex-direction:column;gap:6px}
+.lex:first-of-type{border-top:0}
+.lex-head{display:flex;gap:12px;align-items:baseline;padding:0 18px;flex-wrap:wrap}
+.lex-head h3{margin:0;font-family:"Shippori Mincho",serif;font-size:18px}
+.lex .btnrow{padding:0 18px}
+.lnotes,.lissues,.lsteps{margin:4px 18px 0;padding-left:1.2em;display:flex;flex-direction:column;gap:4px;font-size:14px;line-height:1.7}
+.lnotes{list-style:none;padding-left:0}
+.lnotes li button{font:inherit;text-align:left;color:var(--ink);background:none;border:0;padding:3px 4px;border-radius:6px;cursor:pointer}
+.lnotes li button:hover{background:var(--surface-2)}
+.lnotes li b,.lissues li b{margin-right:8px}
+.lissues{list-style:none;padding-left:0}
+.lissues li{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.lwarn{margin:2px 18px 0;font-size:13px;color:var(--warn)}
+.lfix{margin:4px 18px 0;font-size:14px;line-height:1.7;padding:10px 12px;border-radius:8px;background:var(--surface-2)}
+.lfix b{margin-right:8px}
+.lex .res-ok{margin:0 18px}
+.lside{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.6}
+.lside b{font-weight:700}
+
 /* ---- ドリル ---- */
 .drill-card{display:flex;flex-direction:column}
 .drill-list{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px;border-bottom:1px solid var(--hair);background:var(--surface-2);border-radius:12px 12px 0 0}
