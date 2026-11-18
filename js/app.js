@@ -5,7 +5,7 @@
 'use strict';
 const G=window.GE;
 const {LETTERS,N,midi,nameOf,noteStr,cpy,ivName,FUX,MODES,FUX_NOTES,modeOf,SPECIES,PATTERNS,PAT_FIRST,PAT_MID,hasEighth,
-  defaultRhythm,RULES,INJECT,buildSlots,skey,valsOf,editable,analyze,cfIssues,parseCF}=G;
+  defaultRhythm,RULES,RULE_LV,PRESETS,INJECT,buildSlots,skey,valsOf,editable,analyze,cfIssues,parseCF}=G;
 const LEFT=G.LEFT;
 const SAMPLE={'1-dorian-above':'A4 A4 B4 A4 B4 D5 C5 D5 D5 C5 D5'};
 const $=s=>document.querySelector(s);
@@ -71,14 +71,21 @@ const y=s=>TOP+(SMAX-s)*H+(s<=27?GAP:0);
 function stepAt(yy){if(yy>y(28)+H+GAP/2)return Math.min(27,Math.round(SMAX-(yy-TOP-GAP)/H));return Math.max(28,Math.round(SMAX-(yy-TOP)/H));}
 const NOTE_BOTTOM=y(SMIN);
 const state={cfTemp:null,view:'practice',sp:1,mode:'dorian',above:true,cp:{},rhythm:[],ties:[],sel:0,
-  hints:false,fb:'live',ivMode:'raw',checkedSig:null,compare:null,focus:[],hist:[],future:[],example:false,playing:false,playSlot:-1};
+  hints:false,fb:'live',ivMode:'raw',levels:{},checkedSig:null,compare:null,focus:[],hist:[],future:[],example:false,playing:false,playSlot:-1};
 const busy={cmp:false,gen:false,review:false,custom:false,fill:false};
 let review=null,stash=null,curS=[],curV=[],lastR=null,clefFit=null,drawer=null;
 const cf=()=>state.cfTemp||cfNotes(state.mode);
 const dkey=()=>`${state.sp}-${state.mode}-${state.above?'above':'below'}`;
 const cmpKey=()=>dkey()+'|'+JSON.stringify([state.rhythm,state.ties]);
 const sig=()=>cmpKey()+'|'+JSON.stringify(state.cp);
-const ctx=()=>({sp:state.sp,cf:cf(),above:state.above,slots:curS,vals:curV,rhythm:state.rhythm,ties:state.ties});
+// Review questions are built and checked against the strict (fux) rules, so the user's levels apply everywhere else.
+const ctx=()=>({sp:state.sp,cf:cf(),above:state.above,slots:curS,vals:curV,rhythm:state.rhythm,ties:state.ties,
+  levels:state.view==='review'||!Object.keys(state.levels).length?undefined:state.levels});
+// state.levels holds only the rules that differ from RULE_LV (the fux default).
+function cleanLevels(o){const r={};if(o&&typeof o==='object')for(const[k,v]of Object.entries(o))if(RULES[k]&&['err','warn','off'].includes(v)&&v!==RULE_LV[k])r[k]=v;return r;}
+function presetOf(lv){for(const[k,p]of Object.entries(PRESETS)){const a=cleanLevels(p.levels);
+  if(Object.keys(a).length===Object.keys(lv).length&&Object.keys(a).every(x=>a[x]===lv[x]))return k;}return null;}
+const presetName=lv=>{const k=presetOf(lv);return k?PRESETS[k].name:'カスタム';};
 function showJudg(){
   if(state.view==='review')return !!(review&&review.result);
   if(state.fill)return !!state.fill.guided||state.fill.checkedSig===sig();
@@ -108,7 +115,7 @@ function loadDraft(){
   else{const e=curS.findIndex((s,i)=>editable(s)&&!s.optRest&&!curV[i]);if(e>=0)state.sel=e;}
 }
 function saveDraft(){if(state.view==='review'||state.fill)return;store.drafts[dkey()]=snapshot();savePrefs();}
-function savePrefs(){store.prefs={sp:state.sp,mode:state.mode,above:state.above,hint:state.hints,fb:state.fb,ivMode:state.ivMode,tempo:+$('#tempo').value,midi:midiOn};persist();}
+function savePrefs(){store.prefs={sp:state.sp,mode:state.mode,above:state.above,hint:state.hints,fb:state.fb,ivMode:state.ivMode,levels:state.levels,tempo:+$('#tempo').value,midi:midiOn};persist();}
 function commit(next){
   state.hist.push(snapshot());if(state.hist.length>200)state.hist.shift();state.future=[];
   applySnap(next);state.example=false;state.focus=[];saveDraft();render();
@@ -474,7 +481,7 @@ function drawHistory(){
   const L=store.history;let h=`<div class="hist-head"><h2>保存した解答</h2><span class="muted">${L.length}件 · この端末のブラウザ内に保存</span></div>`;
   if(!L.length)h+=`<div class="empty">まだ保存した解答はありません。練習画面の「この解答を保存」で追加できます。</div>`;
   else h+=L.map(e=>{const d=new Date(e.t),ds=`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    return `<div class="hrow"><div><div class="h-title">${SPECIES[e.sp].name} · ${esc(e.label||(cfEntry(e.mode)||{short:''}).short)} · 対旋律が${e.above?'上':'下'}</div><div class="h-sub">${ds} · 誤り ${e.errs} · 注意 ${e.warns}${e.complete?'':' · 未完成'}</div></div>
+    return `<div class="hrow"><div><div class="h-title">${SPECIES[e.sp].name} · ${esc(e.label||(cfEntry(e.mode)||{short:''}).short)} · 対旋律が${e.above?'上':'下'}</div><div class="h-sub">${ds} · 誤り ${e.errs} · 注意 ${e.warns}${e.complete?'':' · 未完成'}${e.preset&&e.preset!==PRESETS.fux.name?` · 基準: ${esc(e.preset)}`:''}</div></div>
       <div class="h-score${e.complete?'':' inc'}">${!e.complete?'未完成':e.pts!=null?`−${e.pts}${e.pass?'<small class="passbadge">合格</small>':''}`:e.score}</div>
       <div class="h-acts"><button class="btn" type="button" data-hopen="${e.id}">開く</button><button class="btn danger" type="button" data-hdel="${e.id}">${pendingDel===e.id?'本当に削除':'削除'}</button></div></div>`;}).join('');
   $('#histView').innerHTML=h;
@@ -514,9 +521,20 @@ function drawRules(){
   let h=`<div class="rules-grid"><div><h3>${SPECIES[state.sp].name}(${sp[0]})の要点</h3><ul>${sp[1].map(x=>`<li>${x}</li>`).join('')}</ul></div>`;
   RULE_TEXT.common.forEach(([t,l])=>{h+=`<div><h3>${t}</h3><ul>${l.map(x=>`<li>${x}</li>`).join('')}</ul></div>`;});
   h+=`<div><h3>採点のしかた</h3><ul><li>授業で使われている罰点表にならい、指摘ごとに点を引きます。重い誤り(平行5度・8度、反行による連続5度・8度)は3点、中くらいの誤り(隠伏5度・8度、不協和の扱い、掛留)は2点、それ以外は1点。</li><li>同じ種類の3度・6度の連続は、4つで1点、5つで2点と重くなります。途中の拍頭に完全協和が多すぎると、全体で1〜2点引きます。</li><li>書き終えていて「誤り」が0なら合格です。</li></ul></div>`;
-  h+=`</div><p class="fine">教科書によって細部は異なります。ここではフックスの規則をやや厳しめに適用しています。採点は N. Rogers(フロリダ州立大学)の類別対位法の採点基準を土台にしています。</p>`;
+  h+=`</div><p class="fine">教科書によって細部は異なります。既定(フックス厳格)ではフックスの規則をやや厳しめに適用しています。採点は N. Rogers(フロリダ州立大学)の類別対位法の採点基準を土台にしています。</p>`;
+  h+=levelsHTML();
   $('#rulesBody').innerHTML=h;
 }
+function levelsHTML(){
+  const pk=presetOf(state.levels),L={err:'誤り',warn:'注意',off:'無視'};
+  let h=`<section class="levels"><h3>判定の基準</h3><p class="muted">規則ごとに「誤り」「注意」「無視」を選べます。誤りは合格の妨げになり、注意は直すとよい点、無視は表示も採点もしません。どこからを違反とみなすかの線引きは変わりません。解答例と復習の問題は、いつもフックス厳格の基準で作ります。</p>
+  <div class="row"><label class="mini" for="lvPreset">基準</label><select id="lvPreset">${Object.entries(PRESETS).map(([k,p])=>`<option value="${k}"${k===pk?' selected':''}>${p.name}</option>`).join('')}${pk?'':'<option value="" selected>カスタム</option>'}</select></div>
+  <ul class="lvlist">`;
+  for(const id of Object.keys(RULES)){const cur=state.levels[id]||RULE_LV[id],chg=!!state.levels[id];
+    h+=`<li${chg?' class="chg"':''}><span>${RULES[id]}${chg?`<small>既定: ${L[RULE_LV[id]]}</small>`:''}</span><select data-lv="${id}" aria-label="${RULES[id]}">${['err','warn','off'].map(v=>`<option value="${v}"${v===cur?' selected':''}>${L[v]}</option>`).join('')}</select></li>`;}
+  return h+'</ul></section>';
+}
+function setLevels(lv){const b=document.querySelector('.drawer-body'),y=b?b.scrollTop:0;state.levels=cleanLevels(lv);savePrefs();drawRules();render();if(b)b.scrollTop=y;}
 
 /* ================= drawer ================= */
 function openDrawer(kind){
@@ -795,7 +813,7 @@ function render(){
   document.querySelectorAll('[data-show]').forEach(el=>{el.hidden=!el.dataset.show.split(' ').includes(v);});
   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-selected',b.dataset.view===v));
   $('#subTitle').textContent=v==='learn'?`学ぶ · ${SPECIES[learn.sp].name}`:v==='drill'?`ドリル · ${drillInfo(drill.id).title}`:v==='history'?'記録':v==='review'?`復習 · ${SPECIES[state.sp].name}`:`${SPECIES[state.sp].name} · ${SPECIES[state.sp].ratio}`;
-  $('#rulesBtn').textContent=`${SPECIES[state.sp].name}の規則`;
+  {const pk=presetOf(state.levels);$('#rulesBtn').textContent=`${SPECIES[state.sp].name}の規則`+(pk==='fux'?'':` · ${presetName(state.levels)}`);}
   drawMbar(r);
   if(v==='history'){drawHistory();return;}
   if(v==='drill'){drawDrill();return;}
@@ -827,7 +845,7 @@ function saveAnswer(){
   const last=store.history.find(x=>x.key===dkey());
   if(last&&JSON.stringify({cp:last.cp,rhythm:last.rhythm,ties:last.ties})===JSON.stringify(snap)){last.t=Date.now();persist();toast('同じ解答がすでに保存されています(日時を更新しました)。');return;}
   store.history.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),t:Date.now(),key:dkey(),sp:state.sp,mode:state.mode,label:(cfEntry(state.mode)||{short:''}).short,cfNotes:cf().map(noteStr).join(' '),above:state.above,
-    cp:snap.cp,rhythm:snap.rhythm,ties:snap.ties,pts:g.total,pass:g.pass,errs:e,warns:w,complete:r.complete});
+    cp:snap.cp,rhythm:snap.rhythm,ties:snap.ties,preset:presetName(state.levels),pts:g.total,pass:g.pass,errs:e,warns:w,complete:r.complete});
   if(store.history.length>300)store.history.length=300;
   recordStats(r);
   persist();toast('保存しました。「記録」タブで見返せます。');
@@ -959,7 +977,7 @@ function importFrom(text){
   if(!d||typeof d!=='object'||!Array.isArray(d.history||[])){ioMsg='Gradus の記録として読み取れませんでした。';render();return;}
   store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...d};normStore();persist();
   ioMode=null;ioText='';ioMsg='';pendingDel=null;
-  const pf=store.prefs;if(SPECIES[pf.sp])state.sp=pf.sp;state.mode=cfEntry(pf.mode)?pf.mode:'dorian';state.above=pf.above!==false;
+  const pf=store.prefs;if(SPECIES[pf.sp])state.sp=pf.sp;state.mode=cfEntry(pf.mode)?pf.mode:'dorian';state.above=pf.above!==false;state.levels=cleanLevels(pf.levels);
   refreshCfSelect();loadDraft();toast(`記録を読み込みました(保存した解答 ${store.history.length}件)。`);
 }
 
@@ -1127,6 +1145,9 @@ $('#lnBody').addEventListener('click',e=>{
 document.querySelectorAll('[data-drawer]').forEach(b=>b.addEventListener('click',()=>{if(drawer===b.dataset.drawer)closeDrawer();else openDrawer(b.dataset.drawer);}));
 $('#drawerClose').addEventListener('click',closeDrawer);
 $('#drawerBack').addEventListener('click',closeDrawer);
+$('#rulesBody').addEventListener('change',e=>{const t=e.target;
+  if(t.id==='lvPreset'&&PRESETS[t.value]){setLevels(PRESETS[t.value].levels);toast(`判定の基準を「${PRESETS[t.value].name}」にしました。`);}
+  else if(t.dataset.lv)setLevels({...state.levels,[t.dataset.lv]:t.value});});
 $('#mbar').addEventListener('click',()=>{$('#panel').scrollIntoView({behavior:'smooth',block:'start'});});
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&drawer){closeDrawer();return;}
@@ -1181,7 +1202,7 @@ $('#fillBtn').addEventListener('click',()=>{if(state.fill){toast('穴埋め課�
 loadStore();
 const pf=store.prefs||{};
 if(SPECIES[pf.sp])state.sp=pf.sp;if(cfEntry(pf.mode))state.mode=pf.mode;state.above=pf.above!==false;
-state.hints=pf.hint===true;state.fb=pf.fb==='check'?'check':'live';state.ivMode=['raw','simple','quality'].includes(pf.ivMode)?pf.ivMode:'raw';
+state.hints=pf.hint===true;state.levels=cleanLevels(pf.levels);state.fb=pf.fb==='check'?'check':'live';state.ivMode=['raw','simple','quality'].includes(pf.ivMode)?pf.ivMode:'raw';
 if(pf.tempo){$('#tempo').value=pf.tempo;$('#tempoVal').textContent='♩ = '+pf.tempo;}
 if(navigator.requestMIDIAccess){
   $('#midiBtn').hidden=false;

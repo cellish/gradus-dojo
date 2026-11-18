@@ -177,6 +177,30 @@ t('species 5: ornamented suspension resolution (one consonant note between)',()=
   // lower voice, mirror image: E4 (2nd under F4) -> A3 -> D4
   assert.equal(susp(L.build(5,L.LESSONS[5].examples[1])).length,0);
 });
+t('levels: presets re-label or drop findings without changing the rules',()=>{
+  // a line with parallel fifths (err) and a repeated note (warn)
+  const cf=G.FUX_NOTES.dorian;
+  const c=ctxOf(1,cf,true,notes('A4 C5 B4 A4 D5 C5 E5 D5 D5 C#5 D5'));
+  const base=G.analyze(c);
+  assert(ids(base).includes('parallel')&&ids(base).includes('repeat'),ids(base).join(','));
+  const r=G.analyze({...c,levels:{parallel:'warn',repeat:'off'}});
+  assert(!ids(r).includes('repeat'),'off must drop the rule');
+  assert(r.issues.filter(x=>x.id==='parallel').every(x=>x.lv==='warn'),'parallel must become warn');
+  assert.equal(r.issues.length,base.issues.length-base.issues.filter(x=>x.id==='repeat').length);
+  // no levels / the fux preset: unchanged
+  assert.deepEqual(G.analyze({...c,levels:G.PRESETS.fux.levels}).issues,base.issues);
+  // every preset key is a real rule, and every rule has a default level
+  for(const p of Object.values(G.PRESETS))for(const k of Object.keys(p.levels))assert(G.RULES[k],k);
+  for(const k of Object.keys(G.RULES))assert(['err','warn'].includes(G.RULE_LV[k]),k);
+});
+t('levels: lenient turns a hidden fifth into a warning',()=>{
+  // cf C4 -> D4, cp E4 -> A4: a 3rd to a 5th by similar motion with a leap in the upper voice
+  const cf=notes('C4 D4'),S=G.buildSlots(1,2,[],[]),vals=G.valsOf(S,{'0:0':G.N('E4'),'1:0':G.N('A4')});
+  const c={sp:1,cf,above:true,slots:S,vals,rhythm:[],ties:[]};
+  const h=G.analyze(c).issues.find(x=>x.id==='hidden');assert(h&&h.lv==='err',ids(G.analyze(c)).join(','));
+  const l=G.analyze({...c,levels:G.PRESETS.lenient.levels}).issues.find(x=>x.id==='hidden');assert(l&&l.lv==='warn');
+  assert(G.grade(G.analyze({...c,levels:G.PRESETS.lenient.levels}),{cf}).items.some(x=>x.id==='hidden'));
+});
 t('lessons: Fux examples, bad examples and guided tasks',()=>{
   const L=require('../js/lessons.js');
   for(const sp of [1,2,3,4,5]){const les=L.LESSONS[sp];
