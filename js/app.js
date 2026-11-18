@@ -71,7 +71,7 @@ const y=s=>TOP+(SMAX-s)*H+(s<=27?GAP:0);
 function stepAt(yy){if(yy>y(28)+H+GAP/2)return Math.min(27,Math.round(SMAX-(yy-TOP-GAP)/H));return Math.max(28,Math.round(SMAX-(yy-TOP)/H));}
 const NOTE_BOTTOM=y(SMIN);
 const state={cfTemp:null,view:'practice',sp:1,mode:'dorian',above:true,cp:{},rhythm:[],ties:[],sel:0,
-  hints:false,fb:'live',ivMode:'raw',levels:{},checkedSig:null,compare:null,focus:[],hist:[],future:[],example:false,playing:false,playSlot:-1};
+  hints:false,fb:'live',ivMode:'raw',levels:{},zoom:1,checkedSig:null,compare:null,focus:[],hist:[],future:[],example:false,playing:false,playSlot:-1};
 const busy={cmp:false,gen:false,review:false,custom:false,fill:false};
 let review=null,stash=null,curS=[],curV=[],lastR=null,clefFit=null,drawer=null;
 const cf=()=>state.cfTemp||cfNotes(state.mode);
@@ -115,7 +115,7 @@ function loadDraft(){
   else{const e=curS.findIndex((s,i)=>editable(s)&&!s.optRest&&!curV[i]);if(e>=0)state.sel=e;}
 }
 function saveDraft(){if(state.view==='review'||state.fill)return;store.drafts[dkey()]=snapshot();savePrefs();}
-function savePrefs(){store.prefs={sp:state.sp,mode:state.mode,above:state.above,hint:state.hints,fb:state.fb,ivMode:state.ivMode,levels:state.levels,tempo:+$('#tempo').value,midi:midiOn};persist();}
+function savePrefs(){store.prefs={sp:state.sp,mode:state.mode,above:state.above,hint:state.hints,fb:state.fb,ivMode:state.ivMode,levels:state.levels,zoom:state.zoom,tempo:+$('#tempo').value,midi:midiOn};persist();}
 function commit(next){
   state.hist.push(snapshot());if(state.hist.length>200)state.hist.shift();state.future=[];
   applySnap(next);state.example=false;state.focus=[];saveDraft();render();
@@ -279,6 +279,8 @@ function drawStaffLegacy(r){
 /* ---- VexFlow による楽譜(score.js)と、その座標に重ねる表示 ---- */
 const VF_MW={1:74,2:120,3:184,4:120,5:204};
 const VF_SC=1.2;  // VexFlow の譜表(線の間隔10)を画面で少し大きく
+// The zoom select multiplies this for the main staff only (100% = the size used so far); snippets keep VF_SC.
+const ZOOMS=[1,1.3,1.6],mainSc=()=>VF_SC*state.zoom;
 let geo=null;
 const useVF=()=>!!(window.GScore&&GScore.ready());
 function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
@@ -300,7 +302,7 @@ function drawStaffVF(r){
   const c=cf(),n=c.length,S=curS,V=curV,judge=showJudg();
   geo=GScore.engrave(vfModel(V));
   const {W,H}=geo,svg=$('#staff'),X=geo.slotX,cs=cpSt(),fs=cfSt();
-  svg.setAttribute('width',Math.round(W*VF_SC));svg.setAttribute('height',Math.round(H*VF_SC));svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.setAttribute('width',Math.round(W*mainSc()));svg.setAttribute('height',Math.round(H*mainSc()));svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
   const lv=new Array(S.length).fill(null);
   if(judge)r.issues.forEach(is=>is.cols.forEach(i=>{if(is.lv==='err')lv[i]='err';else if(!lv[i])lv[i]='warn';}));
   const tt=geo.top-16,tb=geo.bottom+16;let s='';
@@ -350,8 +352,44 @@ function drawStaffVF(r){
 }
 function drawStaff(r){
   svgEl.classList.toggle('vf',useVF());
-  if(useVF()){try{drawStaffVF(r);return;}catch(e){console.error(e);geo=null;}}
-  geo=null;drawStaffLegacy(r);
+  if(useVF()){try{drawStaffVF(r);followStaff();drawMiniMap();return;}catch(e){console.error(e);geo=null;}}
+  geo=null;drawStaffLegacy(r);drawMiniMap();
+}
+
+/* ---- narrow screens: keep the selected (or playing) note in view, and a strip map of all bars ---- */
+const narrow=()=>matchMedia('(max-width:920px)').matches;
+const staffBox=()=>$('#staffScroll');
+function followStaff(){
+  if(!geo||!narrow())return;
+  const box=staffBox(),i=state.playing&&state.playSlot>=0?state.playSlot:state.sel;
+  if(!box||i==null||i<0||geo.slotX[i]==null)return;
+  // Only recentre when the note leaves the middle half, so tapping a visible note does not jerk the staff under the finger.
+  const sc=mainSc(),w=box.clientWidth,sl=box.scrollLeft,x=geo.slotX[i]*sc-sl,L=geo.slotL[i]*sc,R=geo.slotR[i]*sc;
+  const boxFits=R-L<=w,boxOut=L<sl||R>sl+w;
+  if(x<w*0.25||x>w*0.75||(boxFits&&boxOut)){
+    let t=geo.slotX[i]*sc-w/2;
+    if(boxFits)t=Math.min(L,Math.max(R-w,t));   // a wide slot (e.g. the final whole note) is shown whole
+    box.scrollLeft=Math.max(0,t);
+  }
+  syncMiniFrame();
+}
+function drawMiniMap(){
+  const mm=$('#miniMap');if(!mm)return;
+  const on=!!geo&&narrow()&&state.view!=='learn'&&state.view!=='drill'&&state.view!=='history';
+  mm.hidden=!on;if(!on)return;
+  const n=geo.measX.length,key=n+'|'+geo.W+'|'+geo.measX[0];
+  if(mm.dataset.k!==key){
+    // Bars are laid out at their real proportions (bar 1 also carries the clefs) so the frame lines up with the staff.
+    let h='';for(let m=0;m<n;m++){const x0=m===0?0:geo.measX[m],x1=m+1<n?geo.measX[m+1]:geo.W;
+      h+=`<button type="button" class="mm-bar" data-mm="${m}" style="flex:${(x1-x0).toFixed(1)} 1 0" aria-label="第${m+1}小節へ">${m+1}</button>`;}
+    mm.innerHTML=h+'<i class="mm-frame" aria-hidden="true"></i>';mm.dataset.k=key;}
+  syncMiniFrame();
+}
+function syncMiniFrame(){
+  const mm=$('#miniMap'),box=staffBox();if(!mm||mm.hidden||!geo||!box)return;
+  const f=mm.querySelector('.mm-frame'),tot=geo.W*mainSc();if(!f)return;
+  const a=Math.min(1,box.scrollLeft/tot),b=Math.min(1,(box.scrollLeft+box.clientWidth)/tot);
+  f.style.left=(a*100)+'%';f.style.width=(Math.max(0.02,b-a)*100)+'%';
 }
 
 function rhythmIcon(id){
@@ -977,7 +1015,7 @@ function importFrom(text){
   if(!d||typeof d!=='object'||!Array.isArray(d.history||[])){ioMsg='Gradus の記録として読み取れませんでした。';render();return;}
   store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...d};normStore();persist();
   ioMode=null;ioText='';ioMsg='';pendingDel=null;
-  const pf=store.prefs;if(SPECIES[pf.sp])state.sp=pf.sp;state.mode=cfEntry(pf.mode)?pf.mode:'dorian';state.above=pf.above!==false;state.levels=cleanLevels(pf.levels);
+  const pf=store.prefs;if(SPECIES[pf.sp])state.sp=pf.sp;state.mode=cfEntry(pf.mode)?pf.mode:'dorian';state.above=pf.above!==false;state.levels=cleanLevels(pf.levels);state.zoom=ZOOMS.includes(pf.zoom)?pf.zoom:1;$('#zoomSel').value=String(state.zoom);
   refreshCfSelect();loadDraft();toast(`記録を読み込みました(保存した解答 ${store.history.length}件)。`);
 }
 
@@ -1052,6 +1090,13 @@ function ptVF(e){
   const[lo,hi]=vrange();return {i:sl.i,s:Math.max(lo,Math.min(hi,s0))};
 }
 function pt(e){return geo?ptVF(e):ptLegacy(e);}
+staffBox().addEventListener('scroll',syncMiniFrame,{passive:true});
+$('#miniMap').addEventListener('click',e=>{const b=e.target.closest('[data-mm]');if(!b||!geo)return;
+  const m=+b.dataset.mm,box=staffBox();box.scrollLeft=Math.max(0,(m===0?0:geo.measX[m])*mainSc()-16);
+  // Select the first editable note of that bar so the next render keeps the view there.
+  const j=curS.findIndex(s=>s.m===m&&editable(s));if(j>=0&&state.view==='practice'){state.sel=j;render();}else syncMiniFrame();});
+$('#zoomSel').addEventListener('change',e=>{const z=+e.target.value;state.zoom=ZOOMS.includes(z)?z:1;savePrefs();render();});
+addEventListener('resize',()=>{drawMiniMap();followStaff();});
 svgEl.addEventListener('pointermove',e=>{const g=$('#ghost');if(!g)return;if(e.pointerType!=='mouse'){g.innerHTML='';return;}
   const p=pt(e);if(!p||(curV[p.i]&&curV[p.i].s===p.s)){g.innerHTML='';return;}
   g.innerHTML=geo?headSVG({s:p.s,a:0},geo.slotX[p.i],'ghost'):noteSVG({s:p.s,a:0},curS[p.i].x,'ghost',curS[p.i].dur,state.above?'up':'down');});
@@ -1202,7 +1247,7 @@ $('#fillBtn').addEventListener('click',()=>{if(state.fill){toast('穴埋め課�
 loadStore();
 const pf=store.prefs||{};
 if(SPECIES[pf.sp])state.sp=pf.sp;if(cfEntry(pf.mode))state.mode=pf.mode;state.above=pf.above!==false;
-state.hints=pf.hint===true;state.levels=cleanLevels(pf.levels);state.fb=pf.fb==='check'?'check':'live';state.ivMode=['raw','simple','quality'].includes(pf.ivMode)?pf.ivMode:'raw';
+state.hints=pf.hint===true;state.zoom=ZOOMS.includes(pf.zoom)?pf.zoom:1;$('#zoomSel').value=String(state.zoom);state.levels=cleanLevels(pf.levels);state.fb=pf.fb==='check'?'check':'live';state.ivMode=['raw','simple','quality'].includes(pf.ivMode)?pf.ivMode:'raw';
 if(pf.tempo){$('#tempo').value=pf.tempo;$('#tempoVal').textContent='♩ = '+pf.tempo;}
 if(navigator.requestMIDIAccess){
   $('#midiBtn').hidden=false;

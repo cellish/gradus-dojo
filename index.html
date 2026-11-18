@@ -54,6 +54,7 @@
             <button class="btn primary" id="playBtn" type="button">▶ 再生</button>
             <select id="voiceSel" aria-label="再生する声部"><option value="both">両声部</option><option value="cf">定旋律のみ</option><option value="cp">対旋律のみ</option></select>
             <input id="tempo" type="range" min="60" max="240" step="6" value="144" aria-label="テンポ"><span class="tempo-val" id="tempoVal">♩ = 144</span>
+            <select id="zoomSel" aria-label="楽譜の拡大率"><option value="1">拡大 100%</option><option value="1.3">拡大 130%</option><option value="1.6">拡大 160%</option></select>
           </div>
           <div class="row">
             <button class="btn" id="undoBtn" type="button" title="元に戻す(Ctrl+Z)">元に戻す</button>
@@ -69,7 +70,8 @@
             <select id="fbSel"><option value="live">その場で表示</option><option value="check">答え合わせで表示</option></select>
           </div>
         </div>
-        <div class="staff-scroll"><svg id="staff" role="img" aria-label="大譜表。定旋律と対旋律、各音の音程と進行"></svg></div>
+        <div class="minimap" id="miniMap" role="group" aria-label="小節の縮小図(タップでその小節へ)" hidden></div>
+        <div class="staff-scroll" id="staffScroll"><svg id="staff" role="img" aria-label="大譜表。定旋律と対旋律、各音の音程と進行"></svg></div>
         <div class="selnote" id="selIssues" aria-live="polite"></div>
         <div class="editor">
           <div class="ed-info" id="edInfo"></div>
