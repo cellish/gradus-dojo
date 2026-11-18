@@ -307,3 +307,6 @@
 ## 公開(計画担当が行う。実装担当は触らない)
 - Claude上のページ(版は下の作業ログ): index.html・css・js・vendor を同じ slug(`d7903914-6b76-4a06-a73c-f2d126255107`)に再公開。
 - PWA: `sw.js` の `CACHE` の番号を上げ(今は `gradus-v7`)、アプリのファイルを ZIP にして渡す。新しい js ファイル(`drills.js`・`lessons.js`)は `sw.js` の `SHELL` にも足す(これは実装担当が項目の中で行う)。
+
+## 作業ログ
+- 2026-11-18 項目7(採点)・項目4(学ぶタブ)を実装。GitHub `cellish/gradus-dojo` に push、Claude上のページを版 1794965354-cadd に更新。
