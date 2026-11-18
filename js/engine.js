@@ -85,6 +85,15 @@ const RULES={
   ficta:'変化音の使用', cadStep:'終止の順次進行', leading:'終止前の導音', cadForm:'終止の形', syncBreak:'シンコペーションの中断', rhythm:'リズムの変化',
   eighthStep:'8分音符の順次進行', eighthPlace:'8分音符の位置', eighthUp:'8分音符の上行', eighthMany:'8分音符が多すぎる'
 };
+// Level each rule is reported at by default (beatpar is err in species 2/3 and warn in species 4).
+const RULE_LV={};
+for(const id of Object.keys(RULES))RULE_LV[id]='err';
+for(const id of ['spacing','run','repeat','sixth','comp','twoLeaps','range','climax','ficta','syncBreak','rhythm','eighthUp','eighthMany'])RULE_LV[id]='warn';
+// Presets: overrides of RULE_LV. solve() never receives levels, so model answers always follow 'fux'.
+const PRESETS={
+  fux:{name:'フックス厳格',levels:{}},
+  lenient:{name:'ゆるめ',levels:{hidden:'warn',antiparallel:'off',spacing:'off',run:'off',climax:'off',sixth:'off',twoLeaps:'off',comp:'warn',beatpar:'warn'}}
+};
 const INJECT={parallel:[1,2,3,5],hidden:[1,2,3,5],dissonance:[1,2,3,5],weakdis:[2,3,5],susp:[4],prep:[4],unison:[1,2],
   leapBig:[1,2,3],leapAug:[1,2,3],leading:[1,2,3,4],repeat:[1,2],comp:[1,2],beatpar:[2],first:[1,2],sixth:[1,2],twoLeaps:[1,2,3],cadStep:[1,2],eighthStep:[5]};
 
@@ -274,7 +283,9 @@ function analyze(c){
   for(let m=1;m<n;m++){const i1=at[m+':0'],i0=i1-1;if(i0<0||!V[i0]||!V[i1])continue;
     const t=motion(cf[m-1],cf[m],V[i0],V[i1]);if(t!=='none'){moves++;if(t==='contrary')contra++;}}
   for(let m=1;m<n-1;m++){const i=at[m+':0'];if(iv[i]&&iv[i].perfect)perf++;}
-  return {issues,iv,mo,dis,missing,complete:missing===0,la,stats:{moves,contra,perf,leaps,span:filled.length>=2?span+1:null}};
+  // ctx.levels ({ruleId:'err'|'warn'|'off'}) re-labels findings after the fact; where each rule draws its line is unchanged.
+  const lvs=c.levels, out=lvs?issues.filter(x=>lvs[x.id]!=='off').map(x=>lvs[x.id]?{...x,lv:lvs[x.id]}:x):issues;
+  return {issues:out,iv,mo,dis,missing,complete:missing===0,la,stats:{moves,contra,perf,leaps,span:filled.length>=2?span+1:null}};
 }
 
 /* ================= grading =================
@@ -483,7 +494,7 @@ function solveFor(sp,cf,above,rhythm,ties,ms){
 
 const GE={LEFT,LETTERS,PC,QN,N,midi,nameOf,noteStr,cpy,interval,ivName,vInfo,motion,
   FUX,MODES,FINAL_MODE,FUX_NOTES,modeOf,SPECIES,PATTERNS,PAT_FIRST,PAT_MID,hasEighth,defaultRhythm,RULES,INJECT,
-  buildSlots,skey,valsOf,editable,analyze,POINTS,grade,STRICT,solve,solveOnce,solveFor,
+  buildSlots,skey,valsOf,editable,analyze,RULE_LV,PRESETS,POINTS,grade,STRICT,solve,solveOnce,solveFor,
   pickOne,melBad,cfIssues,genCF,cfSolvable,parseCF,genCFChecked,makeQuestion};
 root.GE=GE;
 if(typeof module!=='undefined'&&module.exports)module.exports=GE;

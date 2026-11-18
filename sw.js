@@ -1,6 +1,6 @@
 // Gradus 対位法ドリル — service worker
 // アプリを更新したら CACHE の番号を上げてください(v1 → v2)。古いキャッシュは自動で削除されます。
-const CACHE = 'gradus-v9';
+const CACHE = 'gradus-v10';
 const FONT_CACHE = 'gradus-fonts';
 const SHELL = [
   './',
