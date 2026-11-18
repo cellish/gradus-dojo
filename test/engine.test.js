@@ -165,6 +165,18 @@ t('opening rule applies only to the first bar, not to the first note written',()
   r=G.analyze({sp:1,cf,above:true,slots:S,vals:G.valsOf(S,cp),rhythm:[],ties:[]});
   assert(ids(r).includes('first'),'third at the start must be flagged');
 });
+t('species 5: ornamented suspension resolution (one consonant note between)',()=>{
+  const L=require('../js/lessons.js'),ex=L.LESSONS[5].examples[0],susp=b=>L.analyzeBuilt(b).issues.filter(x=>x.id==='susp');
+  // Fux p.7 bar 9: E5 (7th over F4) -> A4 (3rd) -> D5 (6th) is accepted
+  assert.equal(susp(L.build(5,ex)).length,0);
+  // the inserted note must be consonant: B4 is an augmented 4th over F4 (C5, a 5th, is fine)
+  assert.equal(susp(L.build(5,ex,{'9-2':'B4'})).length,1);
+  assert.equal(susp(L.build(5,ex,{'9-2':'C5'})).length,0);
+  // after the ornament the line must still resolve a step down: C5 is not D5
+  assert.equal(susp(L.build(5,ex,{'9-3':'C5'})).length,1);
+  // lower voice, mirror image: E4 (2nd under F4) -> A3 -> D4
+  assert.equal(susp(L.build(5,L.LESSONS[5].examples[1])).length,0);
+});
 t('lessons: Fux examples, bad examples and guided tasks',()=>{
   const L=require('../js/lessons.js');
   for(const sp of [1,2,3,4,5]){const les=L.LESSONS[sp];

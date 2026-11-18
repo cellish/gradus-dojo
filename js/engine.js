@@ -125,11 +125,18 @@ function analyze(c){
     if(v.crossed)add('crossing','err',[i],'声部の交差',`対旋律が定旋律の${above?'下':'上'}に回り込んでいます。2声部は交差させません。`);
     if(!v.cons){
       if(s.tiedFrom!=null){
-        const nx=nxt(i);
+        let nx=nxt(i);
         if(nx===-1)add('susp','err',[i],`掛留の解決(${ivName(v)})`,'掛留した不協和音は、次の音で2度下行して協和音に解決します。');
         else if(nx>=0){
-          const d=V[nx].s-V[i].s, r=iv[nx];
-          if(!(d===-1&&r&&r.cons&&!r.crossed))add('susp','err',[i,nx],`掛留の解決(${ivName(v)})`,'強拍で掛留した不協和音は、次の音で2度下行して協和音に解決します。');
+          let d=V[nx].s-V[i].s, r=iv[nx];
+          // Species 5: Fux himself ornaments the resolution by inserting one consonant note before it
+          // (bar 9 of both p.7 examples: E5→A4→D5). Accept that, but only within the same bar (same CF note).
+          if(sp===5&&!(d===-1&&r&&r.cons&&!r.crossed)&&r&&r.cons&&!r.crossed){
+            const n2=nxt(nx);
+            if(n2>=0&&S[n2].m===s.m&&V[n2].s-V[i].s===-1&&iv[n2].cons&&!iv[n2].crossed){nx=n2;d=-1;r=iv[n2];}
+          }
+          if(!(d===-1&&r&&r.cons&&!r.crossed))add('susp','err',[i,nx],`掛留の解決(${ivName(v)})`,'強拍で掛留した不協和音は、次の音で2度下行して協和音に解決します。'
+            +(sp===5?'第5類では、解決音の前に協和音を1つはさんで飾ってもかまいません(同じ小節の中で)。':''));
           else if(!above&&r.dn===0)add('susp','err',[i,nx],'下声の掛留の解決','対旋律が下の掛留は2-3・4-5・9-10で解決します。オクターヴや同度への解決(7-8)は使いません。');
           else if(above&&v.d===1&&r.d===0)add('susp','err',[i,nx],'2-1の掛留','上声の掛留が同度へ解決すると声部が重なってしまいます。7-6・4-3・9-8を使います。');
           else dis[i]='掛';
