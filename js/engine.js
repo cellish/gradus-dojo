@@ -159,7 +159,7 @@ function analyze(c){
       }
       continue;
     }
-    if(i===fi){
+    if(i===fi&&s.m===0){ // only the opening bar: notes written out of order (e.g. the cadence first) are not "the start"
       if(!v.perfect)add('first','err',[i],'開始は完全協和音程で','最初の音程は完全協和音程(対旋律が上なら同度・5度・8度)にします。');
       else if(!above&&v.dn===4)add('first','err',[i],'下声での5度開始','対旋律が下のとき5度で始めると、最低音が終止音と違う音になり旋法があいまいになります。同度かオクターヴで始めます。');
     }else if(i===L-1){

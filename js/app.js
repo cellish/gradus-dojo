@@ -81,7 +81,7 @@ const sig=()=>cmpKey()+'|'+JSON.stringify(state.cp);
 const ctx=()=>({sp:state.sp,cf:cf(),above:state.above,slots:curS,vals:curV,rhythm:state.rhythm,ties:state.ties});
 function showJudg(){
   if(state.view==='review')return !!(review&&review.result);
-  if(state.fill)return state.fill.checkedSig===sig();
+  if(state.fill)return !!state.fill.guided||state.fill.checkedSig===sig();
   return state.fb==='live'||state.checkedSig===sig();
 }
 function refreshSlots(){
@@ -426,7 +426,7 @@ function drawPracticePanel(r){
     h+=`<div class="verdict"><div class="big">${big}${g.pass?'<span class="passbadge">合格</span>':''}</div><div class="sub">${r.complete?`減点 ${g.total}(重い誤り3点・中くらい2点・軽い1点)`:`未入力 ${r.missing}音(採点は書き終えてから)`}</div></div>`;
   }
   h+=compareBox();
-  if(state.fill)h=fillBox(r)+h;
+  if(state.fill)h=(state.fill.guided?guidedBox(r):fillBox(r))+h;
   else h+=`<div class="btnrow"><button class="btn primary" type="button" id="saveBtn">この解答を保存</button></div>`;
   h+=`<dl class="stats"><div><dt>拍頭での反行の割合</dt><dd>${st.moves?Math.round(st.contra/st.moves*100)+'%':'―'}</dd></div><div><dt>途中の拍頭の完全協和</dt><dd>${st.perf}回</dd></div><div><dt>対旋律の音域</dt><dd>${st.span?st.span+'度':'―'}</dd></div><div><dt>跳躍(3度以上)</dt><dd>${st.leaps}回</dd></div></dl>`;
   if(judge){
@@ -569,6 +569,7 @@ async function startFill(){
 }
 function quitFill(){
   const f=state.fill;if(!f)return;state.fill=null;
+  if(f.stash.sp){state.sp=f.stash.sp;state.mode=f.stash.mode;state.above=f.stash.above;}
   applySnap(f.stash.snap);state.hist=f.stash.hist;state.future=f.stash.future;state.example=f.stash.example;state.compare=f.stash.compare;state.focus=[];
 }
 function checkFill(){
@@ -605,16 +606,21 @@ function drawSnippet(svg,sc,answered){
   const vals=snippetVals(sc,answered);
   const g=GScore.engrave({cf:sc.cf,slots:sc.slots.map(s=>({m:s.m,b:s.b,dur:s.dur,rest:!!s.rest,optRest:false,tiedFrom:s.tiedFrom,tieTo:s.tieTo})),
     vals,above:sc.above,MW:VF_MW[sc.sp]||120,col:vfCol()});
-  svg.setAttribute('width',Math.round(g.W*VF_SC));svg.setAttribute('height',Math.round(g.H*VF_SC));svg.setAttribute('viewBox',`0 0 ${g.W} ${g.H}`);
+  // Snippets draw no interval rows, so trim the space VexFlow reserves below the lower staff.
+  const HH=Math.min(g.H,Math.round(g.bottom+30));
+  svg.setAttribute('width',Math.round(g.W*VF_SC));svg.setAttribute('height',Math.round(HH*VF_SC));svg.setAttribute('viewBox',`0 0 ${g.W} ${HH}`);
   const tt=g.top-16,tb=g.bottom+16;let h='';
   sc.marks.forEach(i=>{h+=`<rect class="t-sel" x="${g.slotL[i]+2}" y="${tt}" width="${Math.max(6,g.slotR[i]-g.slotL[i]-4)}" height="${tb-tt}" rx="6"/>`;});
   h+=`<g class="vfw">${g.inner}</g>`;
   svg.innerHTML=h;
 }
 function playSnippet(){
-  const q=drill.q;if(!q||!ensureAudio())return;stopAll();
-  const sc=q.score,vals=snippetVals(sc,drill.answered!=null),t0=ac.currentTime+0.05;
-  if(q.play==='dyad'){tone(freq(sc.cf[0]),t0,1.8,-0.3);if(vals[0])tone(freq(vals[0]),t0,1.8,0.3);return;}
+  const q=drill.q;if(!q)return;
+  playScore(q.score,snippetVals(q.score,drill.answered!=null),q.play==='dyad');
+}
+function playScore(sc,vals,dyad){
+  if(!ensureAudio())return;stopAll();const t0=ac.currentTime+0.05;
+  if(dyad){tone(freq(sc.cf[0]),t0,1.8,-0.3);if(vals[0])tone(freq(vals[0]),t0,1.8,0.3);return;}
   const bt=60/Math.max(60,Math.min(160,+$('#tempo').value||96)),n=sc.cf.length;
   sc.cf.forEach((c,m)=>tone(freq(c),t0+m*4*bt,(m===n-1?5:4)*bt*0.97,-0.3));
   sc.slots.forEach((s,i)=>{if(!vals[i]||s.tiedFrom!=null)return;let d=s.dur;if(s.tieTo!=null)d+=sc.slots[s.tieTo].dur;
@@ -662,10 +668,120 @@ function drawDrill(){
   $('#panel').innerHTML=h;
 }
 
+/* ================= learn (lessons) ================= */
+const GLs=window.GL||null;
+const SECTIONS=[['intro','考え方'],['examples','模範例'],['bad','悪い例と直し方'],['guided','書いてみる']];
+const learn={sp:1,sec:'intro',fixed:{}};
+const learnSvgs=[];
+function lessonSc(b,marks){return {sp:b.sp,above:b.above,cf:b.cf,slots:b.slots,vals:b.vals,marks:marks||[],hide:[],pre:{}};}
+function atLabel(at){const p=GLs.pos(at),beat=p.b+1;return `第${p.m+1}小節${p.b?(Number.isInteger(beat)?` ${beat}拍目`:` ${Math.floor(beat)}拍目の後半`):''}`;}
+function issueKey(x){return x.id+':'+x.cols.join(',');}
+function drawLearn(){
+  const L=GLs.LESSONS[learn.sp];learnSvgs.length=0;
+  $('#lnSp').innerHTML=[1,2,3,4,5].map(k=>`<button type="button" data-lsp="${k}" aria-pressed="${k===learn.sp}">${SPECIES[k].name}<small>${SPECIES[k].ratio}</small></button>`).join('');
+  $('#lnSec').innerHTML=SECTIONS.map(([id,t])=>`<button type="button" data-lsec="${id}" aria-pressed="${id===learn.sec}">${t}</button>`).join('');
+  let h='';
+  if(learn.sec==='intro'){
+    h+=`<article class="lesson"><h2>${esc(L.title)}</h2>${L.intro.map(p=>`<p>${esc(p)}</p>`).join('')}
+      <h3>要点</h3><dl class="lpoints">${L.points.map(p=>`<div><dt>${esc(p.h)}</dt><dd>${esc(p.body)}</dd></div>`).join('')}</dl></article>`;
+  }else if(learn.sec==='examples'){
+    h+=`<p class="lsrc">模範例はすべて ${esc(GLs.SOURCE)} から書き起こしたものです。定旋律は原書の D の定旋律(ドリア)です。</p>`;
+    L.examples.forEach((ex,i)=>{
+      const b=GLs.build(learn.sp,ex),r=GLs.analyzeBuilt(b),k=learnSvgs.length;
+      learnSvgs.push({sc:lessonSc(b,[]),b,notes:ex.notes});
+      const allowed=r.issues.filter(x=>x.lv==='err');
+      h+=`<section class="lex"><div class="lex-head"><h3>${esc(ex.title)}</h3><span class="muted">原書 ${ex.page}ページ</span></div>
+        <div class="staff-scroll"><svg class="lsvg" data-k="${k}" role="img" aria-label="${esc(L.title)} ${esc(ex.title)}の模範例"></svg></div>
+        <div class="btnrow"><button class="btn primary" type="button" data-lplay="${k}">▶ 聴く</button></div>
+        <ol class="lnotes">${ex.notes.map((n,j)=>`<li><button type="button" data-lnote="${k}:${j}"><b>${atLabel(n.at)}</b>${esc(n.text)}</button></li>`).join('')}</ol>
+        ${allowed.length?`<p class="lwarn">このアプリの判定では「${[...new Set(allowed.map(x=>RULES[x.id]))].join('」「')}」が誤りになります(上の注釈を見てください)。</p>`:''}</section>`;
+    });
+  }else if(learn.sec==='bad'){
+    h+=`<p class="lsrc">模範例の1音を変えて、規則に反する形を作りました。「直す」で原例に戻して聴き比べてください。</p>`;
+    L.bad.forEach((bd,i)=>{
+      const ex=L.examples[bd.ex],fixed=!!learn.fixed[learn.sp+':'+i];
+      const orig=GLs.build(learn.sp,ex),bb=GLs.build(learn.sp,ex,bd.change),b=fixed?orig:bb;
+      const base=new Set(GLs.analyzeBuilt(orig).issues.map(issueKey));
+      const added=GLs.analyzeBuilt(bb).issues.filter(x=>!base.has(issueKey(x)));
+      const k=learnSvgs.length;learnSvgs.push({sc:lessonSc(b,bb.changed),b});
+      h+=`<section class="lex"><div class="lex-head"><h3>${esc(bd.title)}</h3><span class="muted">${esc(L.examples[bd.ex].title)}の模範例から</span></div>
+        <div class="staff-scroll"><svg class="lsvg" data-k="${k}" role="img" aria-label="${esc(bd.title)}の例"></svg></div>
+        <div class="btnrow"><button class="btn primary" type="button" data-lplay="${k}">▶ 聴く</button><button class="btn" type="button" data-lfix="${i}" aria-pressed="${fixed}">${fixed?'悪い例に戻す':'直す'}</button></div>
+        ${fixed?`<p class="res-ok">原例に戻しました。枠の音を聴き比べてください。</p>`:`<ul class="lissues">${added.map(x=>`<li><span class="sev ${x.lv}">${x.lv==='err'?'誤り':'注意'}</span><b>${esc(x.t)}</b> ${esc(x.x)}</li>`).join('')}</ul>`}
+        <p class="lfix"><b>直し方</b> ${esc(bd.text)}</p></section>`;
+    });
+  }else{
+    const g=L.guided,cfn=FUX_NOTES[g.mode];
+    h+=`<article class="lesson"><h2>書いてみる</h2><p>フックスの${MODES[g.mode].name}の定旋律に、対旋律を${g.above?'上':'下'}に付けます。練習画面で、次の4つの手順に分けて書きます。手順ごとに、書く場所だけが開き、ほかは固定されます。</p>
+      <ol class="lsteps">${GLs.GUIDED_STEPS.map(st=>`<li><b>${esc(st.title)}</b> ${esc(st.text)}</li>`).join('')}</ol>
+      <p class="muted">定旋律: ${cfn.map(nameOf).join(' ')}</p>
+      <div class="btnrow"><button class="btn primary" type="button" id="lnGuided">練習画面で始める</button></div>
+      <p class="muted">書き終えると、そのまま練習画面の解答として残ります(定旋律の一覧の「フックスの定旋律」の${MODES[g.mode].name})。</p></article>`;
+  }
+  $('#lnBody').innerHTML=h;
+  document.querySelectorAll('#lnBody svg.lsvg').forEach(svg=>{const it=learnSvgs[+svg.dataset.k];if(!it)return;drawSnippet(svg,it.sc,true);scrollToMark(svg);});
+  // The intro section already shows the points; elsewhere the panel keeps them at hand.
+  let p=learn.sec==='intro'?`<h2>${esc(L.title)}</h2><p class="muted">考え方を読んだら、模範例を聴いてみましょう。</p>`:`<h2>${esc(L.title)}<span>要点</span></h2><ul class="lside">${L.points.map(x=>`<li><b>${esc(x.h)}</b><br>${esc(x.body)}</li>`).join('')}</ul>
+    <div class="btnrow"><button class="btn primary" type="button" id="lnPractice">練習タブで${SPECIES[learn.sp].name}を開く</button></div>`;
+  p+=`<p class="toast" role="status">${toastMsg}</p>`;
+  $('#panel').innerHTML=p;
+}
+// Keep a marked note in view: a bad example's change may sit past the visible width of the staff.
+function scrollToMark(svg){
+  const r=svg.querySelector('rect.t-sel'),box=svg.parentElement;if(!r||!box)return;
+  const k=svg.getBoundingClientRect().width/((svg.viewBox&&svg.viewBox.baseVal&&svg.viewBox.baseVal.width)||1);
+  const x=(+r.getAttribute('x'))*k;
+  if(x<box.scrollLeft+40||x>box.scrollLeft+box.clientWidth-80)box.scrollLeft=Math.max(0,x-box.clientWidth/3);
+}
+/* ---- guided task: the practice screen opened step by step ---- */
+function guidedSteps(){
+  const n=cf().length,ok=s=>editable(s);
+  return {cadence:curS.filter(s=>ok(s)&&s.m>=n-2),opening:curS.filter(s=>ok(s)&&s.m===0),
+    climax:curS.filter(s=>ok(s)&&s.m>0&&s.m<n-2),rest:curS.filter(s=>ok(s)&&s.m>0&&s.m<n-2)};
+}
+function guidedApply(){
+  const f=state.fill,gs=guidedSteps(),open=new Set();
+  GLs.GUIDED_STEPS.slice(0,f.guided.idx+1).forEach(st=>gs[st.kind].forEach(s=>open.add(skey(s))));
+  const cur=gs[GLs.GUIDED_STEPS[f.guided.idx].kind];
+  f.blanks=cur.map(skey);f.locked=new Set(curS.filter(s=>editable(s)&&!open.has(skey(s))).map(skey));
+  const first=cur.find(s=>!curV[s.i]&&!s.optRest)||cur[0];if(first)state.sel=first.i;
+}
+function guidedDone(r){
+  const f=state.fill,st=GLs.GUIDED_STEPS[f.guided.idx],slots=guidedSteps()[st.kind],idx=new Set(slots.map(s=>s.i));
+  const errHere=r.issues.some(x=>x.lv==='err'&&x.cols.some(c=>idx.has(c)));
+  if(st.kind==='climax')return slots.some(s=>curV[s.i])&&!errHere;
+  if(st.kind==='rest')return r.complete&&!r.issues.some(x=>x.lv==='err');
+  return slots.every(s=>curV[s.i]||s.optRest)&&!errHere;
+}
+function guidedBox(r){
+  const f=state.fill,k=f.guided.idx,st=GLs.GUIDED_STEPS[k],last=k===GLs.GUIDED_STEPS.length-1,done=guidedDone(r);
+  const filledMid=st.kind==='climax'?guidedSteps().climax.filter(s=>curV[s.i]):[];
+  let h=`<div class="fillbox"><span class="k">書いてみる · ${SPECIES[state.sp].name} · 手順 ${k+1}/4</span><p><b>${esc(st.title)}</b> ${esc(st.text)}</p>`;
+  if(st.kind==='climax'&&filledMid.length)h+=`<p class="muted">置いた音のうち最も高い音: ${nameOf(filledMid.map(s=>curV[s.i]).sort((a,b)=>midi(b)-midi(a))[0])}</p>`;
+  h+=`<div class="btnrow"><button class="btn primary" type="button" id="gdNext"${done?'':' disabled'}>${last?'完成':'次へ'}</button><button class="btn" type="button" id="gdQuit">やめる</button></div>`;
+  if(!done)h+=`<p class="muted">${st.kind==='rest'?'すべての音を入れ、誤りをなくすと完成です。':st.kind==='climax'?'途中の小節に1音置くと次へ進めます(誤りがないこと)。':'点線の枠をすべて埋め、誤りをなくすと次へ進めます。'}</p>`;
+  return h+'</div>';
+}
+function startGuided(sp){
+  const g=GLs.LESSONS[sp].guided;if(state.playing)stopPlayback();
+  saveDraft();
+  const stash={sp:state.sp,mode:state.mode,above:state.above,snap:snapshot(),hist:state.hist,future:state.future,example:state.example,compare:state.compare};
+  state.sp=sp;state.mode=g.mode;state.above=g.above;state.cp={};state.rhythm=[];state.ties=[];
+  state.hist=[];state.future=[];state.compare=null;state.example=false;state.focus=[];state.checkedSig=null;state.sel=0;
+  state.view='practice';refreshCfSelect();refreshSlots();
+  state.fill={guided:{sp,idx:0},blanks:[],locked:new Set(),answer:null,checkedSig:null,result:null,stash};
+  guidedApply();render();toast('手順1: 最後の2小節から書きます。');
+}
+function guidedNext(){
+  const f=state.fill;if(!f||!f.guided||!guidedDone(lastR))return;
+  if(f.guided.idx<GLs.GUIDED_STEPS.length-1){f.guided.idx++;guidedApply();render();toast(`手順${f.guided.idx+1}: ${GLs.GUIDED_STEPS[f.guided.idx].title}`);return;}
+  state.fill=null;saveDraft();render();toast('完成です。ここからは通常の練習画面です。保存して記録に残せます。');
+}
+
 /* ================= render ================= */
 function drawMbar(r){
   const b=$('#mbar');
-  if(state.view==='history'||state.view==='drill'){b.hidden=true;return;}
+  if(state.view==='history'||state.view==='drill'||state.view==='learn'){b.hidden=true;return;}
   b.hidden=false;
   if(state.view==='review'){b.innerHTML=`<span>復習:${review?RULES[review.rule]:'問題を作っています…'}</span><span>操作へ ↓</span>`;return;}
   const {e,w}=scoreOf(r);
@@ -678,11 +794,12 @@ function render(){
   const r=analyze(ctx());lastR=r;const v=state.view;
   document.querySelectorAll('[data-show]').forEach(el=>{el.hidden=!el.dataset.show.split(' ').includes(v);});
   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-selected',b.dataset.view===v));
-  $('#subTitle').textContent=v==='drill'?`ドリル · ${drillInfo(drill.id).title}`:v==='history'?'記録':v==='review'?`復習 · ${SPECIES[state.sp].name}`:`${SPECIES[state.sp].name} · ${SPECIES[state.sp].ratio}`;
+  $('#subTitle').textContent=v==='learn'?`学ぶ · ${SPECIES[learn.sp].name}`:v==='drill'?`ドリル · ${drillInfo(drill.id).title}`:v==='history'?'記録':v==='review'?`復習 · ${SPECIES[state.sp].name}`:`${SPECIES[state.sp].name} · ${SPECIES[state.sp].ratio}`;
   $('#rulesBtn').textContent=`${SPECIES[state.sp].name}の規則`;
   drawMbar(r);
   if(v==='history'){drawHistory();return;}
   if(v==='drill'){drawDrill();return;}
+  if(v==='learn'){drawLearn();return;}
   drawStaff(r);drawEditor(r);
   if(drawer==='rules')drawRules();
   if(drawer==='cf')drawCfTools();
@@ -855,7 +972,7 @@ const midiInputs=()=>midiAcc?[...midiAcc.inputs.values()].filter(i=>i.state!=='d
 function bindMidi(){if(midiAcc)for(const inp of midiAcc.inputs.values())inp.onmidimessage=midiOn?onMidi:null;updMidi();}
 function onMidi(e){const d=e.data;if(!d||d.length<3)return;if((d[0]&0xf0)!==0x90||d[2]===0)return;midiNote(d[1]);}
 function midiNote(m){
-  if(!midiOn||state.view==='history'||state.playing||drawer)return;
+  if(!midiOn||state.view==='history'||state.view==='learn'||state.view==='drill'||state.playing||drawer)return;
   const note=midiToNote(m);
   if(note.s<SMIN+1||note.s>SMAX){toast(`${nameOf(note)}は五線に表示できる範囲の外です。`);return;}
   const i=state.sel;ensureAudio();setNote(i,note);
@@ -942,6 +1059,9 @@ $('#panel').addEventListener('click',e=>{
   const ch=e.target.closest('[data-ch]');if(ch){answerDrill(+ch.dataset.ch);return;}
   if(e.target.id==='drNext'){newDrill();return;}
   if(e.target.id==='fillCheck'){checkFill();return;}
+  if(e.target.id==='gdNext'){guidedNext();return;}
+  if(e.target.id==='gdQuit'){quitFill();state.view='learn';render();toast('書いてみるをやめて、元の練習に戻しました。');return;}
+  if(e.target.id==='lnPractice'){saveDraft();state.sp=learn.sp;loadDraft();state.view='practice';render();return;}
   if(e.target.id==='fillHint'){hintFill();return;}
   if(e.target.id==='fillQuit'){quitFill();render();toast('穴埋めをやめて、元の解答に戻しました。');return;}
   if(e.target.id==='drReplay'){playSnippet();return;}
@@ -991,6 +1111,19 @@ document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',(
   if(v==='review'){startReview();return;}
   leaveReview();state.view=v;ioMode=null;ioMsg='';render();
   if(v==='drill'&&!drill.q&&!drill.loading)newDrill();}));
+$('#lnSp').addEventListener('click',e=>{const b=e.target.closest('[data-lsp]');if(!b)return;learn.sp=+b.dataset.lsp;render();});
+$('#lnSec').addEventListener('click',e=>{const b=e.target.closest('[data-lsec]');if(!b)return;learn.sec=b.dataset.lsec;render();});
+$('#lnBody').addEventListener('click',e=>{
+  const pl=e.target.closest('[data-lplay]');if(pl){const it=learnSvgs[+pl.dataset.lplay];if(it)playScore(it.sc,it.sc.vals,false);return;}
+  const fx=e.target.closest('[data-lfix]');if(fx){const k=learn.sp+':'+fx.dataset.lfix;learn.fixed[k]=!learn.fixed[k];stopAll();render();return;}
+  const nt=e.target.closest('[data-lnote]');if(nt){const [k,j]=nt.dataset.lnote.split(':').map(Number),it=learnSvgs[k];if(!it)return;
+    const i=GLs.slotAt(it.b,it.notes[j].at),svg=document.querySelector(`#lnBody svg[data-k="${k}"]`);
+    if(i>=0&&svg){drawSnippet(svg,{...it.sc,marks:[i]},true);scrollToMark(svg);const S=it.sc.slots,m=S[i].m;
+      playScore({...it.sc,cf:it.sc.cf.slice(m,m+2),slots:S.filter(s=>s.m>=m&&s.m<=m+1).map(s=>({...s,m:s.m-m,tiedFrom:null,tieTo:null})),vals:[]},
+        S.map((s,x)=>x).filter(x=>S[x].m>=m&&S[x].m<=m+1).map(x=>it.sc.vals[x]),false);}
+    return;}
+  if(e.target.id==='lnGuided')startGuided(learn.sp);
+});
 document.querySelectorAll('[data-drawer]').forEach(b=>b.addEventListener('click',()=>{if(drawer===b.dataset.drawer)closeDrawer();else openDrawer(b.dataset.drawer);}));
 $('#drawerClose').addEventListener('click',closeDrawer);
 $('#drawerBack').addEventListener('click',closeDrawer);
@@ -1003,7 +1136,7 @@ document.addEventListener('keydown',e=>{
     else if(e.key==='Enter'&&drill.answered!=null){e.preventDefault();newDrill();}
     else if(e.key===' '||e.key==='p'){e.preventDefault();playSnippet();}
     return;}
-  if(state.view==='history'||drawer)return;
+  if(state.view==='history'||state.view==='learn'||drawer)return;
   const tag=(document.activeElement&&document.activeElement.tagName)||'';
   if(['SELECT','INPUT','TEXTAREA'].includes(tag))return;
   if(e.metaKey||e.ctrlKey){const k=e.key.toLowerCase();

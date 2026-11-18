@@ -1,6 +1,6 @@
 // Gradus 対位法ドリル — service worker
 // アプリを更新したら CACHE の番号を上げてください(v1 → v2)。古いキャッシュは自動で削除されます。
-const CACHE = 'gradus-v7';
+const CACHE = 'gradus-v8';
 const FONT_CACHE = 'gradus-fonts';
 const SHELL = [
   './',
@@ -9,6 +9,7 @@ const SHELL = [
   './css/app.css',
   './js/engine.js',
   './js/drills.js',
+  './js/lessons.js',
   './js/score.js',
   './vendor/vexflow-bravura.js',
   './js/app.js',
