@@ -280,7 +280,14 @@ function drawStaffLegacy(r){
 const VF_MW={1:74,2:120,3:184,4:120,5:204};
 const VF_SC=1.2;  // VexFlow の譜表(線の間隔10)を画面で少し大きく
 // The zoom select multiplies this for the main staff only (100% = the size used so far); snippets keep VF_SC.
-const ZOOMS=[1,1.3,1.6],mainSc=()=>VF_SC*state.zoom;
+// On narrow screens 160% makes the two staves taller than the phone screen, so cap at 130% there.
+// state.zoom keeps the user's choice, so a wide screen still shows 160% when that was chosen.
+const ZOOMS=[1,1.3,1.6],NARROW_MAX=1.3;
+const effZoom=()=>matchMedia('(max-width:920px)').matches?Math.min(state.zoom,NARROW_MAX):state.zoom;
+const mainSc=()=>VF_SC*effZoom();
+function syncZoomSel(){const sel=$('#zoomSel');if(!sel)return;const cap=matchMedia('(max-width:920px)').matches;
+  for(const o of sel.options){const big=+o.value>NARROW_MAX;o.hidden=cap&&big;o.disabled=cap&&big;}
+  sel.value=String(effZoom());}
 let geo=null;
 const useVF=()=>!!(window.GScore&&GScore.ready());
 function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
@@ -351,6 +358,7 @@ function drawStaffVF(r){
   svg.innerHTML=s;
 }
 function drawStaff(r){
+  syncZoomSel();
   svgEl.classList.toggle('vf',useVF());
   if(useVF()){try{drawStaffVF(r);followStaff();drawMiniMap();return;}catch(e){console.error(e);geo=null;}}
   geo=null;drawStaffLegacy(r);drawMiniMap();
@@ -1097,6 +1105,7 @@ $('#miniMap').addEventListener('click',e=>{const b=e.target.closest('[data-mm]')
   const j=curS.findIndex(s=>s.m===m&&editable(s));if(j>=0&&state.view==='practice'){state.sel=j;render();}else syncMiniFrame();});
 $('#zoomSel').addEventListener('change',e=>{const z=+e.target.value;state.zoom=ZOOMS.includes(z)?z:1;savePrefs();render();});
 addEventListener('resize',()=>{drawMiniMap();followStaff();});
+matchMedia('(max-width:920px)').addEventListener('change',()=>render());
 svgEl.addEventListener('pointermove',e=>{const g=$('#ghost');if(!g)return;if(e.pointerType!=='mouse'){g.innerHTML='';return;}
   const p=pt(e);if(!p||(curV[p.i]&&curV[p.i].s===p.s)){g.innerHTML='';return;}
   g.innerHTML=geo?headSVG({s:p.s,a:0},geo.slotX[p.i],'ghost'):noteSVG({s:p.s,a:0},curS[p.i].x,'ghost',curS[p.i].dur,state.above?'up':'down');});
