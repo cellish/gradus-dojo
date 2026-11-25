@@ -415,8 +415,10 @@ function drawStaff(r){
 /* ---- narrow screens: keep the selected (or playing) note in view, and a strip map of all bars ---- */
 const narrow=()=>matchMedia('(max-width:920px)').matches;
 const staffBox=()=>$('#staffScroll');
+// Even at 1280px eleven bars are wider than the staff card, so the map and the follow apply whenever the staff overflows.
+const staffOverflows=()=>{const b=staffBox();return !!b&&b.scrollWidth>b.clientWidth+2;};
 function followStaff(){
-  if(!geo||!narrow())return;
+  if(!geo||!staffOverflows())return;
   const box=staffBox(),i=state.playing&&state.playSlot>=0?state.playSlot:state.sel;
   if(!box||i==null||i<0||geo.slotX[i]==null)return;
   // Only recentre when the note leaves the middle half, so tapping a visible note does not jerk the staff under the finger.
@@ -431,7 +433,7 @@ function followStaff(){
 }
 function drawMiniMap(){
   const mm=$('#miniMap');if(!mm)return;
-  const on=!!geo&&narrow()&&state.view!=='learn'&&state.view!=='drill'&&state.view!=='history';
+  const on=!!geo&&staffOverflows()&&state.view!=='learn'&&state.view!=='drill'&&state.view!=='history';
   mm.hidden=!on;if(!on)return;
   const n=geo.measX.length,key=n+'|'+geo.W+'|'+geo.measX[0];
   if(mm.dataset.k!==key){
@@ -1170,6 +1172,8 @@ $('#miniMap').addEventListener('click',e=>{const b=e.target.closest('[data-mm]')
   const j=curS.findIndex(s=>s.m===m&&editable(s));if(j>=0&&state.view==='practice'){state.sel=j;render();}else syncMiniFrame();});
 $('#zoomSel').addEventListener('change',e=>{const z=+e.target.value;state.zoom=ZOOMS.includes(z)?z:1;savePrefs();render();});
 addEventListener('resize',()=>{drawMiniMap();followStaff();});
+// The staff's width changes once the music fonts load, which can make it start (or stop) overflowing.
+if(window.ResizeObserver)new ResizeObserver(()=>{drawMiniMap();}).observe(svgEl);
 matchMedia('(max-width:920px)').addEventListener('change',()=>render());
 svgEl.addEventListener('pointermove',e=>{const g=$('#ghost');if(!g)return;if(e.pointerType!=='mouse'){g.innerHTML='';return;}
   const p=pt(e);if(!p||(curV[p.i]&&curV[p.i].s===p.s)){g.innerHTML='';return;}
