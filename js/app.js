@@ -40,7 +40,24 @@ function task(type,args){
 /* ================= storage ================= */
 const STORE='gradus-v2';
 let store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{}};
-function normStore(){store.drafts=store.drafts||{};store.prefs=store.prefs||{};store.history=store.history||[];store.stats=store.stats||{};store.cfs=store.cfs||[];store.cfSeq=store.cfSeq||0;store.drillStats=store.drillStats||{};}
+// Stored and imported data are checked entry by entry: one broken entry (e.g. from a hand-edited export) must not stop the app.
+const isObj=o=>!!o&&typeof o==='object'&&!Array.isArray(o);
+const okNote=n=>isObj(n)&&Number.isInteger(n.s)&&n.s>=0&&n.s<70&&[-1,0,1].includes(n.a);
+const okNoteStr=t=>typeof t==='string'&&t.trim().split(/\s+/).every(x=>/^[A-G][#b]?\d$/.test(x));
+function cleanCp(cp){const r={};if(isObj(cp))for(const[k,v]of Object.entries(cp))if(/^\d+:\d+(\.5)?$/.test(k)&&okNote(v))r[k]={s:v.s,a:v.a};return r;}
+const cleanArr=a=>Array.isArray(a)?a:[];
+function normStore(){
+  const d={};for(const[k,v]of Object.entries(isObj(store.drafts)?store.drafts:{})){
+    if(k.startsWith('_seen_'))d[k]=1;else if(isObj(v))d[k]={cp:cleanCp(v.cp),rhythm:cleanArr(v.rhythm),ties:cleanArr(v.ties)};}
+  store.drafts=d;
+  store.prefs=isObj(store.prefs)?store.prefs:{};
+  store.history=cleanArr(store.history).filter(e=>isObj(e)&&SPECIES[e.sp]&&typeof e.id==='string'&&isObj(e.cp))
+    .map(e=>({...e,cp:cleanCp(e.cp),rhythm:cleanArr(e.rhythm),ties:cleanArr(e.ties),cfNotes:okNoteStr(e.cfNotes)?e.cfNotes:undefined}));
+  store.stats=isObj(store.stats)?Object.fromEntries(Object.entries(store.stats).filter(([k,v])=>RULES[k]&&isObj(v))):{};
+  store.cfs=cleanArr(store.cfs).filter(e=>isObj(e)&&typeof e.id==='string'&&okNoteStr(e.notes)&&e.notes.trim().split(/\s+/).length>=2);
+  store.cfSeq=Number.isInteger(store.cfSeq)?store.cfSeq:0;
+  store.drillStats=isObj(store.drillStats)?Object.fromEntries(Object.entries(store.drillStats).filter(([,v])=>isObj(v)&&Number.isFinite(v.n)&&Number.isFinite(v.ok))):{};
+}
 function loadStore(){
   try{
     const s=JSON.parse(localStorage.getItem(STORE)||'null');
@@ -51,7 +68,7 @@ function loadStore(){
         if(k.startsWith('_seen_')){store.drafts['_seen_1-'+k.slice(6)]=1;continue;}
         const cp={};(old.drafts[k]||[]).forEach((x,m)=>{if(x)cp[m+':0']=x;});store.drafts['1-'+k]={cp};
       }
-      store.prefs={sp:1,mode:old.mode,above:old.above};
+      store.prefs={sp:1,mode:old.mode,above:old.above};normStore();
     }
   }catch(e){}
 }
@@ -1030,8 +1047,17 @@ function importFrom(text){
   if(!d||typeof d!=='object'||!Array.isArray(d.history||[])){ioMsg='Gradus の記録として読み取れませんでした。';render();return;}
   store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...d};normStore();persist();
   ioMode=null;ioText='';ioMsg='';pendingDel=null;
-  const pf=store.prefs;if(SPECIES[pf.sp])state.sp=pf.sp;state.mode=cfEntry(pf.mode)?pf.mode:'dorian';state.above=pf.above!==false;state.levels=cleanLevels(pf.levels);state.zoom=ZOOMS.includes(pf.zoom)?pf.zoom:1;$('#zoomSel').value=String(state.zoom);
+  applyPrefs(store.prefs);
   refreshCfSelect();loadDraft();toast(`記録を読み込みました(保存した解答 ${store.history.length}件)。`);
+}
+
+// Used at start-up and after an import, so an imported record brings its settings along (MIDI stays as it is).
+function applyPrefs(pf){
+  state.sp=SPECIES[pf.sp]?pf.sp:1;state.mode=cfEntry(pf.mode)?pf.mode:'dorian';state.above=pf.above!==false;
+  state.hints=pf.hint===true;state.zoom=ZOOMS.includes(pf.zoom)?pf.zoom:1;$('#zoomSel').value=String(state.zoom);state.levels=cleanLevels(pf.levels);
+  state.fb=pf.fb==='check'?'check':'live';state.ivMode=['raw','simple','quality'].includes(pf.ivMode)?pf.ivMode:'raw';
+  const tp=+pf.tempo,t=$('#tempo');
+  if(tp>=+t.min&&tp<=+t.max){t.value=tp;$('#tempoVal').textContent='♩ = '+tp;}
 }
 
 /* ================= MIDI keyboard (step input) ================= */
@@ -1268,9 +1294,7 @@ $('#fillBtn').addEventListener('click',()=>{if(state.fill){toast('穴埋め課�
 /* ================= boot ================= */
 loadStore();
 const pf=store.prefs||{};
-if(SPECIES[pf.sp])state.sp=pf.sp;if(cfEntry(pf.mode))state.mode=pf.mode;state.above=pf.above!==false;
-state.hints=pf.hint===true;state.zoom=ZOOMS.includes(pf.zoom)?pf.zoom:1;$('#zoomSel').value=String(state.zoom);state.levels=cleanLevels(pf.levels);state.fb=pf.fb==='check'?'check':'live';state.ivMode=['raw','simple','quality'].includes(pf.ivMode)?pf.ivMode:'raw';
-if(pf.tempo){$('#tempo').value=pf.tempo;$('#tempoVal').textContent='♩ = '+pf.tempo;}
+applyPrefs(pf);
 if(navigator.requestMIDIAccess){
   $('#midiBtn').hidden=false;
   $('#midiBtn').addEventListener('click',()=>{if(midiOn)midiDisable();else midiEnable(false);});
