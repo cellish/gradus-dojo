@@ -21,9 +21,21 @@ function runLocal(type,a){
   if(type==='drill')return window.GD.make(a.id);
   throw new Error('unknown task '+type);
 }
-function failoverWorker(){
-  if(!worker)return;try{worker.terminate();}catch(e){}worker=null;
+function runPendingLocally(){
   for(const [id,w] of Object.entries(wwait)){delete wwait[id];setTimeout(()=>{try{w.res(runLocal(w.type,w.args));}catch(e){w.rej(e);}},10);}
+}
+function failoverWorker(){
+  if(!worker)return;try{worker.terminate();}catch(e){}worker=null;runPendingLocally();
+}
+// A task posted on a channel (e.g. 'drill') replaces an older one on the same channel that has not answered yet.
+// The worker runs one task at a time and cannot be interrupted, so it is restarted; other waiting tasks are re-sent.
+function supersede(chan){
+  const old=Object.keys(wwait).filter(id=>wwait[id].chan===chan);if(!old.length||!worker)return;
+  try{worker.terminate();}catch(e){}worker=null;
+  for(const id of old){const w=wwait[id];delete wwait[id];w.rej(new Error('superseded'));}
+  initWorker();
+  if(!worker){runPendingLocally();return;}
+  for(const [id,w] of Object.entries(wwait))worker.postMessage({id:+id,type:w.type,args:w.args});
 }
 function initWorker(){
   try{
@@ -32,8 +44,9 @@ function initWorker(){
     worker.onerror=ev=>{if(ev&&ev.preventDefault)ev.preventDefault();failoverWorker();};
   }catch(e){worker=null;}
 }
-function task(type,args){
-  if(worker)return new Promise((res,rej)=>{const id=++wseq;wwait[id]={res,rej,type,args};worker.postMessage({id,type,args});});
+function task(type,args,chan){
+  if(chan)supersede(chan);
+  if(worker)return new Promise((res,rej)=>{const id=++wseq;wwait[id]={res,rej,type,args,chan};worker.postMessage({id,type,args});});
   return new Promise((res,rej)=>setTimeout(()=>{try{res(runLocal(type,args));}catch(e){rej(e);}},20));
 }
 
@@ -720,7 +733,7 @@ function playScore(sc,vals,dyad){
 }
 async function newDrill(id){
   if(id)drill.id=id;drill.q=null;drill.answered=null;drill.loading=true;const tk=++drill.token;render();
-  let q=null;try{q=await task('drill',{id:drill.id});}catch(e){q=null;}
+  let q=null;try{q=await task('drill',{id:drill.id},'drill');}catch(e){q=null;}
   if(tk!==drill.token)return;
   drill.loading=false;drill.q=q;
   if(!q)toast('問題を作れませんでした。もう一度「次の問題」を押してください。');
@@ -956,7 +969,7 @@ async function startReview(rule){
   const token=++reviewToken;
   let q=null,r=rule||pickRule(prevRule);
   for(let k=0;k<4&&!q;k++){
-    try{q=await task('question',{rule:r,prefSp:store.stats[r]&&store.stats[r].sp});}catch(e){q=null;}
+    try{q=await task('question',{rule:r,prefSp:store.stats[r]&&store.stats[r].sp},'review');}catch(e){q=null;}
     if(token!==reviewToken||state.view!=='review')return;
     if(!q)r=pickRule(r);
   }
