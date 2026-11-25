@@ -72,7 +72,17 @@ function loadStore(){
     }
   }catch(e){}
 }
-function persist(){try{localStorage.setItem(STORE,JSON.stringify(store));}catch(e){}}
+// Every note entry saves the draft, and the store also carries up to 300 saved answers, so writes are batched
+// (at most one per 400 ms) and flushed when the page is hidden or closed.
+let persistT=null,persistOk=true;
+function persistNow(){
+  clearTimeout(persistT);persistT=null;
+  try{localStorage.setItem(STORE,JSON.stringify(store));persistOk=true;}
+  catch(e){if(persistOk){persistOk=false;toast('ブラウザに保存できませんでした(保存容量が足りない可能性があります)。記録タブの「書き出し」で控えを取ってください。');}}
+}
+function persist(){if(!persistT)persistT=setTimeout(persistNow,400);}
+addEventListener('pagehide',()=>{if(persistT)persistNow();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&persistT)persistNow();});
 
 /* ================= cantus firmus entries ================= */
 function cfEntry(id){
@@ -1045,7 +1055,7 @@ function importFrom(text){
   let o;try{o=JSON.parse(text);}catch(e){ioMsg='読み込めませんでした。書き出したときのテキストをそのまま貼り付けてください。';render();return;}
   const d=o&&o.app==='gradus'&&o.data?o.data:null;
   if(!d||typeof d!=='object'||!Array.isArray(d.history||[])){ioMsg='Gradus の記録として読み取れませんでした。';render();return;}
-  store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...d};normStore();persist();
+  store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...d};normStore();persistNow();
   ioMode=null;ioText='';ioMsg='';pendingDel=null;
   applyPrefs(store.prefs);
   refreshCfSelect();loadDraft();toast(`記録を読み込みました(保存した解答 ${store.history.length}件)。`);
