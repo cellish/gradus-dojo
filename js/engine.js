@@ -472,17 +472,20 @@ function makeQuestion(rule,prefSp){
     const S=buildSlots(sp,n,rhythm,ties);
     const sol=solve(sp,c,above,S,rhythm,ties,1400);if(!sol)continue;
     const base={sp,cf:c,above,slots:S,rhythm,ties};
+    // The relaxed solver pass may keep a warning of this very rule; such an answer cannot serve as the model answer.
+    if(analyze({...base,vals:valsOf(S,sol)}).issues.some(x=>x.id===rule))continue;
     const cands=[];
     S.forEach(sl=>{if(!editable(sl)||sl.optRest)return;const k=skey(sl),cur=sol[k];if(!cur)return;
       const tries=[];for(let st=cur.s-6;st<=cur.s+6;st++)if(st!==cur.s)tries.push({s:st,a:0});
       tries.push({s:cur.s,a:cur.a?0:1});
       tries.forEach(nt=>{const cp=Object.assign({},sol);cp[k]=nt;
-        const r=analyze({...base,vals:valsOf(S,cp)});const hit=r.issues.find(x=>x.id===rule);if(!hit)return;
-        const other=r.issues.filter(x=>x.id!==rule&&x.lv==='err').length;cands.push({cp,other,cols:hit.cols});});});
+        const r=analyze({...base,vals:valsOf(S,cp)});const hits=r.issues.filter(x=>x.id===rule);if(!hits.length)return;
+        const other=r.issues.filter(x=>x.id!==rule&&x.lv==='err').length;cands.push({cp,other,hits:hits.length,cols:hits[0].cols,lv:hits[0].lv});});});
     if(!cands.length)continue;
-    const mn=Math.min(...cands.map(x=>x.other));const pool=cands.filter(x=>x.other===mn);
+    // Prefer one finding of the rule and nothing else wrong: the question says there is exactly one place to fix.
+    const mn=Math.min(...cands.map(x=>x.other*10+x.hits));const pool=cands.filter(x=>x.other*10+x.hits===mn);
     const pick=pool[Math.floor(Math.random()*pool.length)];
-    return {rule,sp,cf:c,label,above,rhythm,ties,cp:pick.cp,answer:sol,target:pick.cols,checked:false,result:null};
+    return {rule,sp,cf:c,label,above,rhythm,ties,cp:pick.cp,answer:sol,target:pick.cols,lv:pick.lv,checked:false,result:null};
   }
   return null;
 }

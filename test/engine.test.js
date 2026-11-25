@@ -64,6 +64,16 @@ t('review question contains exactly the target rule error',()=>{
     assert(ids(r).includes(rule),rule+': '+ids(r));
   }
 });
+t('review question: model answer is free of the rule, and the level is reported',()=>{
+  for(const rule of ['comp','sixth','repeat','parallel']){
+    for(let k=0;k<12;k++){
+      const q=G.makeQuestion(rule);assert(q,'no question '+rule);
+      const S=G.buildSlots(q.sp,q.cf.length,q.rhythm,q.ties),an=v=>G.analyze({sp:q.sp,cf:q.cf,above:q.above,slots:S,vals:G.valsOf(S,v),rhythm:q.rhythm,ties:q.ties});
+      assert(!ids(an(q.answer)).includes(rule),rule+': model answer has the rule');
+      const hit=an(q.cp).issues.find(x=>x.id===rule);assert(hit,rule);assert.equal(q.lv,hit.lv,rule);
+    }
+  }
+});
 t('species 5 rhythm patterns fill each bar with 4 beats',()=>{
   for(const [id,p] of Object.entries(G.PATTERNS))assert.equal(p.d.reduce((a,b)=>a+b,0),4,id);
   for(const n of [8,10,11,14]){

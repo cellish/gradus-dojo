@@ -495,7 +495,7 @@ function drawReviewPanel(r){
   if(!review){$('#panel').innerHTML=`<p class="muted">問題を作っています…</p><p class="toast" role="status">${toastMsg}</p>`;return;}
   const q=review;let h=`<div class="mission"><span class="k">${SPECIES[q.sp].name} · ${q.label||''} · 対旋律が${q.above?'上':'下'} · 第${q.no}問</span>
     <span class="rule">${RULES[q.rule]}</span>
-    <p>この対旋律には「${RULES[q.rule]}」の誤りが1か所あります。音を直して「答え合わせ」を押してください。</p></div>`;
+    <p>この対旋律には「${RULES[q.rule]}」の${q.lv==='warn'?'注意':'誤り'}が1か所あります。音を直して「答え合わせ」を押してください。</p></div>`;
   h+=`<div class="btnrow"><button class="btn primary" type="button" id="rvCheck">答え合わせ</button><button class="btn" type="button" id="rvHint">場所のヒント</button><button class="btn" type="button" id="rvShow">模範解答</button></div>`;
   if(q.result){
     const res=q.result;
