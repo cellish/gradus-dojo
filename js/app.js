@@ -656,7 +656,8 @@ function hintFill(){
 function fillGuard(key){
   if(!state.fill)return true;
   if(pendingDel==='fill:'+key){pendingDel=null;quitFill();return true;}
-  armDelete('fill:'+key);toast('穴埋め課題の途中です。もう一度押すと、穴埋めをやめて実行します。');return false;
+  const what=state.fill.guided?'「書いてみる」':'穴埋め課題';
+  armDelete('fill:'+key);toast(`${what}の途中です。もう一度押すと、${what}をやめて実行します。`);return false;
 }
 
 /* ================= drills ================= */
@@ -1178,8 +1179,10 @@ $('#histView').addEventListener('click',e=>{
   if(d){const id=d.dataset.hdel;if(pendingDel!==id){armDelete(id);return;}store.history=store.history.filter(x=>x.id!==id);pendingDel=null;persist();toast('削除しました。');}
 });
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
-  const v=b.dataset.view;if(v===state.view)return;if(state.playing)stopPlayback();closeDrawer();
-  if(state.fill)quitFill();
+  const v=b.dataset.view;if(v===state.view)return;
+  // Leaving the practice screen ends a fill-in or guided task, so ask once instead of dropping the work silently.
+  if(!fillGuard('view:'+v))return;
+  if(state.playing)stopPlayback();closeDrawer();
   if(v==='review'){startReview();return;}
   leaveReview();state.view=v;ioMode=null;ioMsg='';render();
   if(v==='drill'&&!drill.q&&!drill.loading)newDrill();}));
@@ -1232,10 +1235,12 @@ const spSeg=$('#spSeg');[1,2,3,4,5].forEach(k=>{const b=document.createElement('
 spSeg.addEventListener('click',e=>{const b=e.target.closest('[data-sp]');if(!b||+b.dataset.sp===state.sp)return;if(!fillGuard('sp'))return;if(state.playing)stopPlayback();saveDraft();state.sp=+b.dataset.sp;loadDraft();saveDraft();render();});
 sel.addEventListener('change',()=>{cfMsg='';switchCF(sel.value);});
 $('#quickGen').addEventListener('click',()=>{if(!fillGuard('gen'))return;cfMsg='';generateNew();});
-$('#genBtn').addEventListener('click',()=>{cfMsg='';generateNew();});
-$('#cfAdd').addEventListener('click',addCustom);
-$('#cfText').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCustom();}});
+// The drawer's buttons also switch the cantus firmus, so they need the same guard as the task bar while a fill-in is open.
+$('#genBtn').addEventListener('click',()=>{if(!fillGuard('gen'))return;cfMsg='';generateNew();});
+$('#cfAdd').addEventListener('click',()=>{if(!fillGuard('add'))return;addCustom();});
+$('#cfText').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(!fillGuard('add'))return;addCustom();}});
 $('#paneCf').addEventListener('click',e=>{if(e.target.id!=='cfDel')return;const id=state.mode;
+  if(!fillGuard('del'))return;
   if(pendingDel!=='cf:'+id){armDelete('cf:'+id);return;}
   pendingDel=null;removeCF(id);cfMsg='';state.mode='dorian';loadDraft();saveDraft();refreshCfSelect();render();toast('定旋律を削除しました(保存した解答の記録は残ります)。');});
 function setPos(ab){if(state.above===ab)return;if(!fillGuard('pos'))return;if(state.playing)stopPlayback();saveDraft();state.above=ab;loadDraft();saveDraft();render();}
