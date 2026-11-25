@@ -224,7 +224,12 @@ function makeCadence(){
     const {sc}=excerpt(1,cf,above,fs.S,fs.vals,n-2,n-1);
     sc.slots=plainSlots(1,2);sc.hide=[0,1];sc.marks=[0,1];
     const cfDown=cf[n-1].s<cf[n-2].s,want=(above===cfDown)?'6度 → オクターヴ':'3度 → 同度(10度 → オクターヴ)';
-    const lead=pen.a===1?`導音を♯で半音上げて(${nameOf(pen)})、終止音へ半音で入ります。`:(mode==='phrygian'?'フリギアでは終止音の上の音が半音なので、♯は付けません。':'ここでは対旋律が上から終止音に入るので、♯は要りません。');
+    // Without a sharp there are three reasons: Phrygian (the half step lies above the final), a final that already
+    // has a half step below it (Lydian E→F, Ionian B→C), or a counterpoint that reaches the final from above.
+    const lead=pen.a===1?`導音を♯で半音上げて(${nameOf(pen)})、終止音へ半音で入ります。`
+      :mode==='phrygian'?'フリギアでは終止音の上の音が半音なので、♯は付けません。'
+      :pen.s<fin.s?`${MODES[mode].name}では、終止音の半音下の音(${nameOf(pen)})がもともとあるので、♯は要りません。`
+      :'ここでは対旋律が上から終止音に入るので、♯は要りません。';
     return {id:'cadence',prompt:`${MODES[mode].name}の定旋律で、対旋律が${above?'上':'下'}のとき、対旋律の最後の2音は?`,score:sc,play:'all',hideScore:false,choices:ch,
       explain:`定旋律が${cfDown?'上から':'下から'}終止音に入るので、終止の直前は${want}の形にし、2声部が反対方向へ順次進行して終わります。${lead}`};
   }

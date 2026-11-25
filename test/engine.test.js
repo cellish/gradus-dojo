@@ -127,6 +127,17 @@ t('drills: every drill makes valid questions',()=>{
     }
   }
 });
+t('drills: cadence explanation matches the mode (no "from above" when the line rises)',()=>{
+  const GD=require('../js/drills.js');const seen={};
+  for(let k=0;k<200&&Object.keys(seen).length<6;k++){
+    const q=GD.make('cadence');const v=q.score.vals,mode=Object.keys(G.MODES).find(m=>q.prompt.startsWith(G.MODES[m].name));
+    seen[mode]=1;
+    // Fux's cantus firmi all end by step from above, so the counterpoint always rises into the final.
+    assert(v[0].s<v[1].s,'counterpoint rises into the final');
+    assert(!q.explain.includes('対旋律が上から終止音に入る'),mode+': '+q.explain);
+    if(v[0].a===0&&(mode==='lydian'||mode==='ionian'))assert(q.explain.includes('もともと'),mode+': '+q.explain);
+  }
+});
 t('grading: 3/2/1 points, escalation, global deduction, pass',()=>{
   const cf=G.FUX_NOTES.dorian,c=v=>ctxOf(1,cf,true,notes(v));
   // parallel fifths (3) somewhere
