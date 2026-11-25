@@ -33,5 +33,5 @@ os:                  # 対応 / 一部制限 / 非対応 / 未確認
 ## OS / ブラウザ対応状況
 - macOS: Chrome 対応(計算部のテストと表示の確認。2026-11 確認) / Safari 一部制限(Web MIDI が無く、MIDI 入力とそのボタンが出ない。README の記載で、実機は未確認)
 - iOS / iPadOS: 一部制限(Safari を含む iOS のブラウザは Web MIDI が無く、MIDI 入力は使えない。ホーム画面に追加して PWA として使う。README の記載で、実機は未確認)
-- Windows: Chrome / Edge 未確認(インストール手順は README にある)
+- Windows: Chrome 未確認(インストール手順は README にある)
 - Android: Chrome 未確認(インストール手順は README にある)
