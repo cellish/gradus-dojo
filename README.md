@@ -92,22 +92,4 @@ python3 -m http.server 8000
 
 ## 著作権・ライセンス
 
-Copyright (c) 2026 jun. All rights reserved.
-
-公開しているサイトでは、誰でも無料でこのアプリを使えます(個人の練習、授業やレッスンでの利用を含みます)。ソースコードは見られるように公開していますが、オープンソースではありません。複製・改変・再配布などの条件は [`LICENSE`](LICENSE) を見てください。
-
-同梱している主な部品は次のとおりです。詳しくは [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) を見てください。
-
-- VexFlow 5.0.0(楽譜の描画):MIT License
-- Bravura・Academico(楽譜フォント。VexFlow に埋め込み):SIL Open Font License 1.1
-
-### 収めている作品
-
-| 作品 | 作者と没年 | 状態 |
-|---|---|---|
-| 6つの定旋律(ドリア・フリギア・リディア・ミクソリディア・エオリア・イオニア) | J. J. フックス(1741年没)『Gradus ad Parnassum』1725年 | 保護期間終了(日本・米国とも) |
-| 「学ぶ」タブの模範例(第1〜5類、上声・下声の計10例) | 同上の英訳『Practical Rules for Learning Composition』(ロンドン、Welcker 刊、18世紀) | 保護期間終了(日本・米国とも) |
-| 自動生成した定旋律、解答例、復習・練習の課題 | このアプリが作成 | jun の著作物として扱う |
-
-定旋律はフックスの1725年原典(IMSLP などのスキャン)から、模範例は18世紀の英訳(IMSLP #370587)から書き起こしたものです。書き起こしの方法と原書のページは [`docs/FUX-EXAMPLES.md`](docs/FUX-EXAMPLES.md) にあります。現代の翻訳や校訂版からは写していません。
-
+ライセンスは [`LICENSE`](LICENSE)、同梱している他者の著作物(ライブラリ・フォント・譜例)は [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) を参照してください。
