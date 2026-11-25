@@ -529,7 +529,7 @@ function drawHistory(){
   else h+=L.map(e=>{const d=new Date(e.t),ds=`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     return `<div class="hrow"><div><div class="h-title">${SPECIES[e.sp].name} · ${esc(e.label||(cfEntry(e.mode)||{short:''}).short)} · 対旋律が${e.above?'上':'下'}</div><div class="h-sub">${ds} · 誤り ${e.errs} · 注意 ${e.warns}${e.complete?'':' · 未完成'}${e.preset&&e.preset!==PRESETS.fux.name?` · 基準: ${esc(e.preset)}`:''}</div></div>
       <div class="h-score${e.complete?'':' inc'}">${!e.complete?'未完成':e.pts!=null?`−${e.pts}${e.pass?'<small class="passbadge">合格</small>':''}`:e.score}</div>
-      <div class="h-acts"><button class="btn" type="button" data-hopen="${e.id}">開く</button><button class="btn danger" type="button" data-hdel="${e.id}">${pendingDel===e.id?'本当に削除':'削除'}</button></div></div>`;}).join('');
+      <div class="h-acts"><button class="btn" type="button" data-hopen="${e.id}">${pendingDel==='open:'+e.id?'置き換えて開く':'開く'}</button><button class="btn danger" type="button" data-hdel="${e.id}">${pendingDel===e.id?'本当に削除':'削除'}</button></div></div>`;}).join('');
   $('#histView').innerHTML=h;
   let p=`<h2>よく間違える規則<span>保存した解答と復習の記録</span></h2>${weakHTML(10)}`;
   p+=`<div class="btnrow"><button class="btn primary" type="button" id="goReview">苦手な規則を復習する</button></div>`;
@@ -910,6 +910,12 @@ function openHistory(id){
   state.hist=[];state.future=[];state.focus=[];state.example=false;state.compare=null;state.checkedSig=null;state.sel=0;state.view='practice';saveDraft();
   toast('記録の解答を開きました。');
 }
+// Opening a record replaces the draft kept for the same species, cantus firmus and voice position.
+function openConflict(id){
+  const e=store.history.find(x=>x.id===id);if(!e)return false;const d=store.drafts[e.key];
+  if(!d||!d.cp||!Object.keys(d.cp).length)return false;
+  return JSON.stringify({cp:d.cp,rhythm:d.rhythm||[],ties:d.ties||[]})!==JSON.stringify({cp:e.cp,rhythm:e.rhythm||[],ties:e.ties||[]});
+}
 function pickRule(exclude){
   const rows=weakRows().filter(x=>INJECT[x.id]&&x.p>0&&x.id!==exclude).slice(0,4).map(x=>x.id);
   const pool=rows.length?rows:['parallel','hidden','dissonance','leading','leapAug','weakdis','susp','unison'].filter(x=>x!==exclude);
@@ -1175,7 +1181,9 @@ $('#drillList').addEventListener('click',e=>{const b=e.target.closest('[data-dri
 $('#drPlay').addEventListener('click',playSnippet);
 $('#histView').addEventListener('click',e=>{
   const o=e.target.closest('[data-hopen]'),d=e.target.closest('[data-hdel]');
-  if(o)openHistory(o.dataset.hopen);
+  if(o){const id=o.dataset.hopen;
+    if(openConflict(id)&&pendingDel!=='open:'+id){armDelete('open:'+id);toast('同じ類・定旋律・位置の書きかけの解答があります。開くと置き換わります。もう一度押すと開きます。');return;}
+    pendingDel=null;openHistory(id);}
   if(d){const id=d.dataset.hdel;if(pendingDel!==id){armDelete(id);return;}store.history=store.history.filter(x=>x.id!==id);pendingDel=null;persist();toast('削除しました。');}
 });
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
