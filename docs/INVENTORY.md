@@ -20,7 +20,7 @@
   - 判定の基準の切替(フックス厳格/ゆるめ/規則ごと)、記録(解答の履歴・苦手な規則・ドリルの成績)、記録の書き出し/読み込み
   - 再生(Web Audio)、MIDI 鍵盤のステップ入力、楽譜の拡大(100/130/160%)と追従、ライト/ダーク
 - **言語・作り**: 素の JavaScript(IIFE を `<script src>` で順に読む。import/export なし)。フレームワーク・npm 依存・ビルドなし。CSS 1ファイル。テストは Node(`node test/engine.test.js`、26件、約20秒)。スクリーンショットは Python + Playwright(`tools/shot.py`)。
-- **公開**: Claude上のページ(Artifact、非公開)。リポジトリ直下をそのまま PWA として配信できるが、GitHub Pages は未公開(`docs/PLAN.md`「保存・配布・権利」)。
+- **公開**: Claude上のページ(Artifact、非公開)。リポジトリ直下をそのまま PWA として配信できるが、GitHub Pages は未公開(`docs/DESIGN.md`「保存・配布・権利」)。
 - **ファイル構成**
 
 | ファイル | 行数 | 役割 |
@@ -36,7 +36,7 @@
 | `sw.js`・`manifest.webmanifest`・`icons/` | | PWA |
 | `vendor/` | | VexFlow 5.0.0(Bravura・Academico 埋め込み)とライセンス文 |
 | `test/engine.test.js` | 261 | 計算部のテスト |
-| `docs/PLAN.md`・`PROGRESS.md`・`docs/FUX-EXAMPLES.md` | | 設計、進み具合、模範例の書き起こし |
+| `docs/DESIGN.md`・`STATUS.md`・`PLAN.md`・`docs/FUX-EXAMPLES.md` | | 設計の決定、現状、未完了の作業、模範例の書き起こし |
 | `docs/legacy/gradus-v5.html` | 1327 | 分割前の1ファイル版(参照用) |
 
 ---
@@ -98,7 +98,7 @@
 | 楽譜表示 | あり | `js/score.js` `GScore.engrave(model)`。VexFlow 5.0.0 を `vendor/vexflow-bravura.js`(同梱、`<script src>`、`window.VexFlow`)で使う。2段(声部ごとに1段)、音部記号は加線の少ないほうを `pickClef` で選ぶ。SVG を画面外の div に描き、`innerHTML` と座標 `geo`(`slotX`・`slotL/R`・各段の第5線の y など)を返す。選択枠・色・音程の行・平行線などは app.js `drawStaffVF` が `geo` から SVG を重ねる。結果は最大40件キャッシュ。VexFlow かフォントが使えないときは app.js `drawStaffLegacy`(手描き、Noto Music)。`.vfw text{font-family:Bravura,Academico}` が必須。 |
 | MIDI 入力 | あり | app.js `midiEnable`・`onMidi`・`midiNote`・`midiToNote`。Web MIDI、ノートオンだけ。選択中のスロットに入れて次へ進むステップ入力。黒鍵の綴りは固定(`MIDI_SPELL`)。Claude上のページでは使えない旨を表示。 |
 | 音の再生 | あり | app.js `ensureAudio`・`tone`・`playSlot`・`playCols`・`playAll`。Web Audio の発振器(三角波+1オクターヴ上の正弦波、ローパス、エンベロープ)。定旋律を左、対旋律を右へパン。サンプル音源なし。ドリルは `playScore`・`playSnippet`。 |
-| マイク入力・音高判定 | なし | 段階3の候補(`docs/PLAN.md`)。 |
+| マイク入力・音高判定 | なし | 段階3の候補(`PLAN.md`)。 |
 | 音程・調の計算 | あり | engine.js `interval`・`vInfo`・`motion`・`modeOf`・`melBad`。コードの計算はなし。 |
 | 規則の判定 | あり | engine.js `analyze(ctx)`。規則 id 33個(`RULES`)、既定の段階 `RULE_LV`、プリセット `PRESETS`(`fux`・`lenient`)。不協和の種類(経過音・刺繍音・カンビアータ・掛留)を `dis[]` に返す。定旋律だけの検査は `cfIssues`。 |
 | 採点 | あり | engine.js `grade(r, ctx)`。罰点表 `POINTS`(3・2・1点)、3度・6度の連続は累進、完全協和の使いすぎは全体減点。合格 = 書き終えていて `err` が0。 |
@@ -176,12 +176,12 @@
 
 - `engine.js` に画面の座標が残っている(`LEFT`、スロットの `x`、`SPECIES[].MW`)。計算部は画面の都合を持たないという方針に合わない。app.js も `G.LEFT` を使う。
 - 同じ処理の重複: `drills.js` の `cpy`・`ivLabel` は engine.js の `cpy`・`ivName` と同じ。app.js の `ivLabel(v)` は別物(表示の切替用)で、名前が重なっている。
-- 解答探索は乱数つき深さ優先探索で、時間切れで「見つからない」ことがある(第4類の下声で起きやすい。`PROGRESS.md`)。厳しい段階で答えが見つからない定旋律では、解答例に注意が多く残る(第2類エオリアの上声など)。
+- 解答探索は乱数つき深さ優先探索で、時間切れで「見つからない」ことがある(第4類の下声で起きやすい。`PLAN.md`「既知の問題」)。厳しい段階で答えが見つからない定旋律では、解答例に注意が多く残る(第2類エオリアの上声など)。
 - 第4類で対旋律が下のとき、最初の掛留が規則上成り立たない定旋律がある(自動生成では全類で解けるものだけを使う)。
 - 定旋律の自動生成はフックスのものほど自然でないことがある。
 - MIDI の黒鍵は固定の綴り(D♯・A♭ などは入力後に直す必要がある)。
 - 手描き表示 `drawStaffLegacy` は新しい機能に対応していない(方針として放置)。
-- 未決(`docs/PLAN.md` 4.): 声部の交差の扱い、ドリル 2f・2b の設定、講義の分量、第2〜5類の罰点の割り当て、教科書別の判定の基準。2026-11-25 の点検の未決(変化音の注意の範囲、埋め合わせの厳しさ、メニューの配置、狭い画面の操作の行、フィクタのドリル、Claude上のページの書体)。
+- 未決(`PLAN.md`): 声部の交差の扱い、ドリル 2f・2b の設定、講義の分量、第2〜5類の罰点の割り当て、教科書別の判定の基準。2026-11-25 の点検の未決(変化音の注意の範囲、埋め合わせの厳しさ、メニューの配置、狭い画面の操作の行、フィクタのドリル、Claude上のページの書体)。
 - TODO・FIXME のコメントはない(js・css・index.html・sw.js・test を検索)。
 - 気になる設計
   - `analyze` が約170行の1関数で、規則の追加がこの関数の編集になる。
