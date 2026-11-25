@@ -25,3 +25,8 @@ updated: 2026-11-26
 - 書法コア(綴り・音程・判定): 独自実装(`js/engine.js`)
 - 楽譜の浄書: 独自実装(VexFlow 5 を同梱。リハモ道場と同じファイル)
 - MIDI 入力・音(Web Audio): 独自実装
+## OS対応状況
+- macOS: 対応(Chrome・Edge。MIDI のステップ入力も使える。Safari は Web MIDI が無く MIDI 入力不可)
+- iOS / iPadOS: 一部制限(Safari は Web MIDI に対応しないため MIDI 入力は使えず、ボタンも出ない。ホーム画面に追加して PWA として使う。実機確認の記録なし)
+- Windows: 未確認(Chrome・Edge でのインストール手順は README にある)
+- Android: 未確認(Chrome でのインストール手順は README にある)
