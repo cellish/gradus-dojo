@@ -526,7 +526,9 @@ function drawPracticePanel(r){
     h+=`<div class="pending"><span>${r.complete?'書き終えたら答え合わせをしましょう。':`未入力 ${r.missing}音。書き終えたら答え合わせをしましょう。`}${changed?'(前回の答え合わせの後に変更があります)':''}</span>
       <button class="btn primary" type="button" id="checkBtn">答え合わせ</button></div>`;
   }else{
-    const big=!e&&!w?`<span class="good">規則違反なし</span>`:`${e?`<span class="e">誤り ${e}</span>`:'<span class="good">誤り 0</span>'} · ${w?`<span class="w">注意 ${w}</span>`:'注意 0'}`;
+    // With nothing (or only part) written, "no violations" would read as a pass, so say what is actually known.
+    const none=!curV.some(Boolean);
+    const big=none?'<span>まだ音がありません</span>':!e&&!w?(r.complete?`<span class="good">規則違反なし</span>`:'<span class="good">いまのところ違反なし</span>'):`${e?`<span class="e">誤り ${e}</span>`:'<span class="good">誤り 0</span>'} · ${w?`<span class="w">注意 ${w}</span>`:'注意 0'}`;
     h+=`<div class="verdict"><div class="big">${big}${g.pass?'<span class="passbadge">合格</span>':''}</div><div class="sub">${r.complete?`減点 ${g.total}(重い誤り3点・中くらい2点・軽い1点)`:`未入力 ${r.missing}音(採点は書き終えてから)`}</div></div>`;
   }
   h+=compareBox();
@@ -535,7 +537,7 @@ function drawPracticePanel(r){
   h+=`<dl class="stats"><div><dt>拍頭での反行の割合</dt><dd>${st.moves?Math.round(st.contra/st.moves*100)+'%':'―'}</dd></div><div><dt>途中の拍頭の完全協和</dt><dd>${st.perf}回</dd></div><div><dt>対旋律の音域</dt><dd>${st.span?st.span+'度':'―'}</dd></div><div><dt>跳躍(3度以上)</dt><dd>${st.leaps}回</dd></div></dl>`;
   if(judge){
     h+=`<h2>指摘<span>${r.issues.length}件 · クリックで該当箇所を再生</span></h2>`;
-    if(!r.issues.length)h+=r.complete?`<div class="ok"><b>よくできました。</b>${SPECIES[state.sp].name}の規則をすべて満たしています。保存して記録に残しておけます。</div>`:`<div class="ok">いまのところ規則違反はありません。</div>`;
+    if(!r.issues.length)h+=!curV.some(Boolean)?`<div class="ok">対旋律を書くと、ここに指摘が出ます。</div>`:r.complete?`<div class="ok"><b>よくできました。</b>${SPECIES[state.sp].name}の規則をすべて満たしています。保存して記録に残しておけます。</div>`:`<div class="ok">いまのところ規則違反はありません。</div>`;
     else h+=issueList(r.issues);
     if(g.global.length)h+='<div class="issues">'+g.global.map(x=>`<div class="issue gl"><span class="sev warn">全体</span><span><span class="it-title">${x.t}</span><span class="pts">−${x.pts}</span></span><span class="it-x">途中の拍頭は、3度・6度を中心にすると2声部が独立して聞こえます。</span></div>`).join('')+'</div>';
   }
@@ -901,7 +903,7 @@ function drawMbar(r){
   b.hidden=false;
   if(state.view==='review'){b.innerHTML=`<span>復習:${review?RULES[review.rule]:'問題を作っています…'}</span><span>操作へ ↓</span>`;return;}
   const {e,w}=scoreOf(r);
-  const left=!showJudg()?`答え合わせ前${r.complete?'':` · 未入力 ${r.missing}音`}`:(!e&&!w?'<span class="good">規則違反なし</span>':`<span class="e">誤り ${e}</span> · <span class="w">注意 ${w}</span>`)+(r.complete||!showJudg()?'':` · 未入力 ${r.missing}`);
+  const left=!curV.some(Boolean)?`まだ音がありません · 未入力 ${r.missing}音`:!showJudg()?`答え合わせ前${r.complete?'':` · 未入力 ${r.missing}音`}`:(!e&&!w?`<span class="good">${r.complete?'規則違反なし':'いまのところ違反なし'}</span>`:`<span class="e">誤り ${e}</span> · <span class="w">注意 ${w}</span>`)+(r.complete||!showJudg()?'':` · 未入力 ${r.missing}`);
   b.innerHTML=`<span>${left}</span><span>指摘を見る ↓</span>`;
 }
 function render(){
