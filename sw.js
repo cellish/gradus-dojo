@@ -1,6 +1,6 @@
 // Gradus 対位法ドリル — service worker
 // アプリを更新したら CACHE の番号を上げてください。古いキャッシュは自動で削除されます。
-const CACHE = 'gradus-v12';
+const CACHE = 'gradus-v13';
 const FONT_CACHE = 'gradus-fonts';
 const SHELL = [
   './',
@@ -61,6 +61,11 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // それ以外(アイコンなど): キャッシュ優先
-  e.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
+  // それ以外(JS・CSS・アイコンなど)もネットワーク優先にし、取れたものでキャッシュを更新する。
+  // キャッシュ優先だと、CACHE の番号を上げ忘れたとき、新しい index.html と古い JS が組み合わさって動いてしまう。
+  e.respondWith(
+    fetch(req)
+      .then((res) => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); } return res; })
+      .catch(() => caches.match(req))
+  );
 });

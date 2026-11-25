@@ -23,7 +23,7 @@
 ## 確かめ方(コミットの前に必ず)
 
 ```
-node test/engine.test.js        # 計算部のテスト
+node test/engine.test.js        # 計算部のテスト(約20秒)
 python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)配信し、ブラウザで確かめる
 ```
 
@@ -52,7 +52,7 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 | `docs/legacy/gradus-v5.html` | 分割前の1ファイル版(v5)。参照用。編集しない。 |
 | `PROGRESS.md` | 作業の記録・今の状態・次の作業。 |
 | `docs/` | `PLAN.md`(設計と段階)、`FUX-EXAMPLES.md`(模範例の書き起こし)。アプリからはリンクしない。 |
-| `sw.js`・`manifest.webmanifest`・`icons/` | PWA。アプリのファイルを変えたら `sw.js` の `CACHE` の番号を上げ、新しいファイルは `SHELL` に足す。 |
+| `sw.js`・`manifest.webmanifest`・`icons/` | PWA。同じサイトのファイルはネットワーク優先(オフライン時だけキャッシュ)。アプリのファイルを変えたら `sw.js` の `CACHE` の番号を上げ、新しいファイルは `SHELL` に足す。 |
 | `tools/shot.py` | スクリーンショット(1280/390px、ライト/ダーク)。 |
 | `LICENSE` | 著作権表示(All rights reserved)。 |
 
@@ -76,14 +76,15 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 
 **5. 保存。**
 localStorage キー `gradus-v2`、構造 `{drafts, prefs, history, stats, cfs, cfSeq, drillStats}`(`prefs` に判定の基準 `levels`・拡大率 `zoom` も入る)。旧 `gradus-drafts-v1` は読み込み時に移行。**構造を変えるときは移行処理を書き、書き出し/読み込み(`exportJSON`・`importFrom`)も合わせる。**
-保存のたびに `persist()`。`state` の変更で Undo に残すものは `commit(snapshot)` を通す。
+保存のたびに `persist()`(書き込みは400msにまとめ、ページを閉じるときに書き切る。すぐ書く必要があるときは `persistNow()`)。保存データ・読み込んだデータは `normStore()` が1項目ずつ検査するので、項目を足したらそこにも検査を足す。`state` の変更で Undo に残すものは `commit(snapshot)` を通す。
 
 **6. 重い計算は Worker。**
-`task(type, args)` が Promise を返す(`solve`・`genCF`・`question`・`cfSolvable`・`drill`)。Worker が作れない環境では本体スレッドで同じ関数を実行する。新しい重い処理は `worker.js` の `TASKS` と `app.js` の `runLocal` の両方に足す。
+`task(type, args, chan)` が Promise を返す(`solve`・`genCF`・`question`・`cfSolvable`・`drill`)。`chan`(`'drill'`・`'review'`)を付けると、同じ `chan` の古い依頼は Worker ごと打ち切られ、reject される(呼ぶ側は try/catch で受ける)。Worker が作れない環境では本体スレッドで同じ関数を実行する。新しい重い処理は `worker.js` の `TASKS` と `app.js` の `runLocal` の両方に足す。
 
 **7. 楽譜。**
 音符・臨時記号・休符・タイ・音部記号は VexFlow が置く。選択枠、誤り/注意の色、音程と進行の行、平行線、最高音の印、候補の点、解答例の重ね表示は、`geo`(各スロットの x、枠の左右、各段の第5線の y と音)から app.js が描く。
 `.vfw text{font-family:Bravura,Academico}` は必須(これがないと符頭が文字化けする)。
+楽譜が横にはみ出すときは、画面の幅にかかわらず小節の縮小図を出し、選んだ音を追う(`staffOverflows`)。再生中は楽譜を描き直さず、再生位置の枠 `#playMark` だけを `markPlaying` で動かす。
 VexFlow が使えないときは手描き表示(`drawStaffLegacy`)に切り替わる。この経路は壊さない範囲で放置してよい(新機能で対応しなくてよい)。
 
 **8. 著作権。**

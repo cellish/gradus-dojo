@@ -41,6 +41,15 @@ t('solver finds error-free answers for every Fux cf, species and voice',()=>{
     assert(r.complete);
   }
 });
+t('solver restarts: species 3 answers are almost always free of warnings',()=>{
+  // Before restarts, about 1 in 7 searches spent the whole strict budget and returned an answer with a warning.
+  let withFindings=0;
+  for(let r=0;r<2;r++)for(const [k] of G.FUX)for(const above of [true,false]){
+    const c=G.FUX_NOTES[k],S=G.buildSlots(3,c.length,[],[]),s=G.solve(3,c,above,S,[],[],2500);assert(s,k);
+    if(G.analyze({sp:3,cf:c,above,slots:S,vals:G.valsOf(S,s),rhythm:[],ties:[]}).issues.length)withFindings++;
+  }
+  assert(withFindings<=4,'answers with findings: '+withFindings+'/24');
+});
 t('generated cantus firmi obey cf rules',()=>{
   for(const m of Object.keys(G.MODES))for(let i=0;i<5;i++){
     const c=G.genCF(m,10);assert(c,'gen failed '+m);
@@ -62,6 +71,16 @@ t('review question contains exactly the target rule error',()=>{
     const S=G.buildSlots(q.sp,q.cf.length,q.rhythm,q.ties);
     const r=G.analyze({sp:q.sp,cf:q.cf,above:q.above,slots:S,vals:G.valsOf(S,q.cp),rhythm:q.rhythm,ties:q.ties});
     assert(ids(r).includes(rule),rule+': '+ids(r));
+  }
+});
+t('review question: model answer is free of the rule, and the level is reported',()=>{
+  for(const rule of ['comp','sixth','repeat','parallel']){
+    for(let k=0;k<12;k++){
+      const q=G.makeQuestion(rule);assert(q,'no question '+rule);
+      const S=G.buildSlots(q.sp,q.cf.length,q.rhythm,q.ties),an=v=>G.analyze({sp:q.sp,cf:q.cf,above:q.above,slots:S,vals:G.valsOf(S,v),rhythm:q.rhythm,ties:q.ties});
+      assert(!ids(an(q.answer)).includes(rule),rule+': model answer has the rule');
+      const hit=an(q.cp).issues.find(x=>x.id===rule);assert(hit,rule);assert.equal(q.lv,hit.lv,rule);
+    }
   }
 });
 t('species 5 rhythm patterns fill each bar with 4 beats',()=>{
@@ -125,6 +144,17 @@ t('drills: every drill makes valid questions',()=>{
       assert.equal(q.score.slots.length,q.score.vals.length,d.id);
       GD.analyzeScore(q.score);
     }
+  }
+});
+t('drills: cadence explanation matches the mode (no "from above" when the line rises)',()=>{
+  const GD=require('../js/drills.js');const seen={};
+  for(let k=0;k<200&&Object.keys(seen).length<6;k++){
+    const q=GD.make('cadence');const v=q.score.vals,mode=Object.keys(G.MODES).find(m=>q.prompt.startsWith(G.MODES[m].name));
+    seen[mode]=1;
+    // Fux's cantus firmi all end by step from above, so the counterpoint always rises into the final.
+    assert(v[0].s<v[1].s,'counterpoint rises into the final');
+    assert(!q.explain.includes('対旋律が上から終止音に入る'),mode+': '+q.explain);
+    if(v[0].a===0&&(mode==='lydian'||mode==='ionian'))assert(q.explain.includes('もともと'),mode+': '+q.explain);
   }
 });
 t('grading: 3/2/1 points, escalation, global deduction, pass',()=>{
@@ -219,6 +249,10 @@ t('lessons: Fux examples, bad examples and guided tasks',()=>{
       const base=new Set(L.analyzeBuilt(orig).issues.map(x=>x.id+':'+x.cols));
       const added=L.analyzeBuilt(bb).issues.filter(x=>!base.has(x.id+':'+x.cols));
       assert(added.some(x=>x.id===bd.rule),`sp${sp} bad "${bd.title}" lacks ${bd.rule}`);
+      // A bad example should show its one point. These three have no single-note change that does so;
+      // the screen lists their side findings apart.
+      const mixed=['3:拍頭の不協和','4:上へ解決する掛留','5:不協和の飾り'];
+      if(!mixed.includes(sp+':'+bd.title))assert(added.every(x=>x.id===bd.rule),`sp${sp} bad "${bd.title}" also adds ${added.map(x=>x.id)}`);
     });
     const g=les.guided,cf=G.FUX_NOTES[g.mode];
     assert(G.solveFor(sp,cf,g.above,sp===5?G.defaultRhythm(cf.length):[],[],3000),`guided sp${sp} unsolvable`);

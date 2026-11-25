@@ -21,9 +21,21 @@ function runLocal(type,a){
   if(type==='drill')return window.GD.make(a.id);
   throw new Error('unknown task '+type);
 }
-function failoverWorker(){
-  if(!worker)return;try{worker.terminate();}catch(e){}worker=null;
+function runPendingLocally(){
   for(const [id,w] of Object.entries(wwait)){delete wwait[id];setTimeout(()=>{try{w.res(runLocal(w.type,w.args));}catch(e){w.rej(e);}},10);}
+}
+function failoverWorker(){
+  if(!worker)return;try{worker.terminate();}catch(e){}worker=null;runPendingLocally();
+}
+// A task posted on a channel (e.g. 'drill') replaces an older one on the same channel that has not answered yet.
+// The worker runs one task at a time and cannot be interrupted, so it is restarted; other waiting tasks are re-sent.
+function supersede(chan){
+  const old=Object.keys(wwait).filter(id=>wwait[id].chan===chan);if(!old.length||!worker)return;
+  try{worker.terminate();}catch(e){}worker=null;
+  for(const id of old){const w=wwait[id];delete wwait[id];w.rej(new Error('superseded'));}
+  initWorker();
+  if(!worker){runPendingLocally();return;}
+  for(const [id,w] of Object.entries(wwait))worker.postMessage({id:+id,type:w.type,args:w.args});
 }
 function initWorker(){
   try{
@@ -32,15 +44,33 @@ function initWorker(){
     worker.onerror=ev=>{if(ev&&ev.preventDefault)ev.preventDefault();failoverWorker();};
   }catch(e){worker=null;}
 }
-function task(type,args){
-  if(worker)return new Promise((res,rej)=>{const id=++wseq;wwait[id]={res,rej,type,args};worker.postMessage({id,type,args});});
+function task(type,args,chan){
+  if(chan)supersede(chan);
+  if(worker)return new Promise((res,rej)=>{const id=++wseq;wwait[id]={res,rej,type,args,chan};worker.postMessage({id,type,args});});
   return new Promise((res,rej)=>setTimeout(()=>{try{res(runLocal(type,args));}catch(e){rej(e);}},20));
 }
 
 /* ================= storage ================= */
 const STORE='gradus-v2';
 let store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{}};
-function normStore(){store.drafts=store.drafts||{};store.prefs=store.prefs||{};store.history=store.history||[];store.stats=store.stats||{};store.cfs=store.cfs||[];store.cfSeq=store.cfSeq||0;store.drillStats=store.drillStats||{};}
+// Stored and imported data are checked entry by entry: one broken entry (e.g. from a hand-edited export) must not stop the app.
+const isObj=o=>!!o&&typeof o==='object'&&!Array.isArray(o);
+const okNote=n=>isObj(n)&&Number.isInteger(n.s)&&n.s>=0&&n.s<70&&[-1,0,1].includes(n.a);
+const okNoteStr=t=>typeof t==='string'&&t.trim().split(/\s+/).every(x=>/^[A-G][#b]?\d$/.test(x));
+function cleanCp(cp){const r={};if(isObj(cp))for(const[k,v]of Object.entries(cp))if(/^\d+:\d+(\.5)?$/.test(k)&&okNote(v))r[k]={s:v.s,a:v.a};return r;}
+const cleanArr=a=>Array.isArray(a)?a:[];
+function normStore(){
+  const d={};for(const[k,v]of Object.entries(isObj(store.drafts)?store.drafts:{})){
+    if(k.startsWith('_seen_'))d[k]=1;else if(isObj(v))d[k]={cp:cleanCp(v.cp),rhythm:cleanArr(v.rhythm),ties:cleanArr(v.ties)};}
+  store.drafts=d;
+  store.prefs=isObj(store.prefs)?store.prefs:{};
+  store.history=cleanArr(store.history).filter(e=>isObj(e)&&SPECIES[e.sp]&&typeof e.id==='string'&&isObj(e.cp))
+    .map(e=>({...e,cp:cleanCp(e.cp),rhythm:cleanArr(e.rhythm),ties:cleanArr(e.ties),cfNotes:okNoteStr(e.cfNotes)?e.cfNotes:undefined}));
+  store.stats=isObj(store.stats)?Object.fromEntries(Object.entries(store.stats).filter(([k,v])=>RULES[k]&&isObj(v))):{};
+  store.cfs=cleanArr(store.cfs).filter(e=>isObj(e)&&typeof e.id==='string'&&okNoteStr(e.notes)&&e.notes.trim().split(/\s+/).length>=2);
+  store.cfSeq=Number.isInteger(store.cfSeq)?store.cfSeq:0;
+  store.drillStats=isObj(store.drillStats)?Object.fromEntries(Object.entries(store.drillStats).filter(([,v])=>isObj(v)&&Number.isFinite(v.n)&&Number.isFinite(v.ok))):{};
+}
 function loadStore(){
   try{
     const s=JSON.parse(localStorage.getItem(STORE)||'null');
@@ -51,11 +81,21 @@ function loadStore(){
         if(k.startsWith('_seen_')){store.drafts['_seen_1-'+k.slice(6)]=1;continue;}
         const cp={};(old.drafts[k]||[]).forEach((x,m)=>{if(x)cp[m+':0']=x;});store.drafts['1-'+k]={cp};
       }
-      store.prefs={sp:1,mode:old.mode,above:old.above};
+      store.prefs={sp:1,mode:old.mode,above:old.above};normStore();
     }
   }catch(e){}
 }
-function persist(){try{localStorage.setItem(STORE,JSON.stringify(store));}catch(e){}}
+// Every note entry saves the draft, and the store also carries up to 300 saved answers, so writes are batched
+// (at most one per 400 ms) and flushed when the page is hidden or closed.
+let persistT=null,persistOk=true;
+function persistNow(){
+  clearTimeout(persistT);persistT=null;
+  try{localStorage.setItem(STORE,JSON.stringify(store));persistOk=true;}
+  catch(e){if(persistOk){persistOk=false;toast('ブラウザに保存できませんでした(保存容量が足りない可能性があります)。記録タブの「書き出し」で控えを取ってください。');}}
+}
+function persist(){if(!persistT)persistT=setTimeout(persistNow,400);}
+addEventListener('pagehide',()=>{if(persistT)persistNow();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&persistT)persistNow();});
 
 /* ================= cantus firmus entries ================= */
 function cfEntry(id){
@@ -167,9 +207,15 @@ function playAll(override){
   if(v!=='cp')c.forEach((note,m)=>tone(freq(note),t0+m*4*q,m===n-1?6*q:4*q*0.98,-0.3));
   curS.forEach((s,i)=>{const ts=t0+(s.m*4+s.b)*q;
     if(v!=='cf'&&V[i]&&s.tiedFrom==null){let dur=s.dur;if(s.tieTo!=null)dur+=curS[s.tieTo].dur;tone(freq(V[i]),ts,(s.m===n-1?6:dur)*q*0.96,0.3);}
-    timers.push(setTimeout(()=>{state.playSlot=i;drawStaff(lastR);},Math.max(0,(ts-ac.currentTime)*1000)));});
+    timers.push(setTimeout(()=>markPlaying(i),Math.max(0,(ts-ac.currentTime)*1000)));});
   timers.push(setTimeout(()=>stopPlayback(false),(t0+n*4*q+0.8-ac.currentTime)*1000));
   render();
+}
+function markPlaying(i){
+  state.playSlot=i;const r=geo&&document.getElementById('playMark');
+  if(!r){drawStaff(lastR);return;} // hand-drawn fallback staff: redraw as before
+  r.setAttribute('x',geo.slotL[i]+2);r.setAttribute('width',Math.max(6,geo.slotR[i]-geo.slotL[i]-4));r.removeAttribute('visibility');
+  followStaff();
 }
 function stopPlayback(cut=true){timers.forEach(clearTimeout);timers=[];if(cut)stopAll();state.playing=false;state.playSlot=-1;render();}
 
@@ -314,7 +360,9 @@ function drawStaffVF(r){
   if(judge)r.issues.forEach(is=>is.cols.forEach(i=>{if(is.lv==='err')lv[i]='err';else if(!lv[i])lv[i]='warn';}));
   const tt=geo.top-16,tb=geo.bottom+16;let s='';
   const box=(i,cls)=>`<rect class="${cls}" x="${geo.slotL[i]+2}" y="${tt}" width="${Math.max(6,geo.slotR[i]-geo.slotL[i]-4)}" height="${tb-tt}" rx="6"/>`;
-  for(let i=0;i<S.length;i++){if(lv[i])s+=box(i,'t-'+lv[i]);if(i===state.playSlot)s+=box(i,'t-play');}
+  for(let i=0;i<S.length;i++){if(lv[i])s+=box(i,'t-'+lv[i]);}
+  // One playback frame, moved note by note by markPlaying() instead of redrawing the whole staff.
+  if(state.playing)s+=box(Math.max(0,state.playSlot),'t-play').replace('<rect','<rect id="playMark"'+(state.playSlot<0?' visibility="hidden"':''));
   if(state.fill)S.forEach((sl,i)=>{if(state.fill.blanks.includes(skey(sl)))s+=box(i,'t-blank');});
   if(!state.playing)s+=box(state.sel,'t-sel');
   if(state.focus.length){const a=Math.min(...state.focus),b=Math.max(...state.focus);
@@ -367,8 +415,10 @@ function drawStaff(r){
 /* ---- narrow screens: keep the selected (or playing) note in view, and a strip map of all bars ---- */
 const narrow=()=>matchMedia('(max-width:920px)').matches;
 const staffBox=()=>$('#staffScroll');
+// Even at 1280px eleven bars are wider than the staff card, so the map and the follow apply whenever the staff overflows.
+const staffOverflows=()=>{const b=staffBox();return !!b&&b.scrollWidth>b.clientWidth+2;};
 function followStaff(){
-  if(!geo||!narrow())return;
+  if(!geo||!staffOverflows())return;
   const box=staffBox(),i=state.playing&&state.playSlot>=0?state.playSlot:state.sel;
   if(!box||i==null||i<0||geo.slotX[i]==null)return;
   // Only recentre when the note leaves the middle half, so tapping a visible note does not jerk the staff under the finger.
@@ -383,7 +433,7 @@ function followStaff(){
 }
 function drawMiniMap(){
   const mm=$('#miniMap');if(!mm)return;
-  const on=!!geo&&narrow()&&state.view!=='learn'&&state.view!=='drill'&&state.view!=='history';
+  const on=!!geo&&staffOverflows()&&state.view!=='learn'&&state.view!=='drill'&&state.view!=='history';
   mm.hidden=!on;if(!on)return;
   const n=geo.measX.length,key=n+'|'+geo.W+'|'+geo.measX[0];
   if(mm.dataset.k!==key){
@@ -451,7 +501,8 @@ function where(cols){const a=curS[Math.min(...cols)],b=curS[Math.max(...cols)];
   const f=s=>state.sp===1||s.b===0&&curS.filter(t=>t.m===s.m).length===1?`${s.m+1}`:`${s.m+1}-${Number.isInteger(s.b)?s.b+1:Math.floor(s.b)+1+'後'}`;
   return a===b?`第${f(a)}`:`第${f(a)}〜${f(b)}`;}
 let toastT=null,toastMsg='';
-function toast(m){toastMsg=m;clearTimeout(toastT);toastT=setTimeout(()=>{toastMsg='';render();},5500);render();}
+// Clearing a message only empties the message line; the rest of the screen has not changed.
+function toast(m){toastMsg=m;clearTimeout(toastT);toastT=setTimeout(()=>{toastMsg='';document.querySelectorAll('.toast').forEach(el=>{el.textContent='';});},5500);render();}
 function issueList(list){
   return '<div class="issues">'+list.map(it=>`<button class="issue" type="button" data-issue="${lastR.issues.indexOf(it)}"><span class="sev ${it.lv}">${it.lv==='err'?'誤り':'注意'}</span><span><span class="it-title">${it.t}</span><span class="it-where">${where(it.cols)}</span><span class="pts">−${ptsOf(it)}</span></span><span class="it-x">${it.x}</span></button>`).join('')+'</div>';
 }
@@ -475,7 +526,9 @@ function drawPracticePanel(r){
     h+=`<div class="pending"><span>${r.complete?'書き終えたら答え合わせをしましょう。':`未入力 ${r.missing}音。書き終えたら答え合わせをしましょう。`}${changed?'(前回の答え合わせの後に変更があります)':''}</span>
       <button class="btn primary" type="button" id="checkBtn">答え合わせ</button></div>`;
   }else{
-    const big=!e&&!w?`<span class="good">規則違反なし</span>`:`${e?`<span class="e">誤り ${e}</span>`:'<span class="good">誤り 0</span>'} · ${w?`<span class="w">注意 ${w}</span>`:'注意 0'}`;
+    // With nothing (or only part) written, "no violations" would read as a pass, so say what is actually known.
+    const none=!curV.some(Boolean);
+    const big=none?'<span>まだ音がありません</span>':!e&&!w?(r.complete?`<span class="good">規則違反なし</span>`:'<span class="good">いまのところ違反なし</span>'):`${e?`<span class="e">誤り ${e}</span>`:'<span class="good">誤り 0</span>'} · ${w?`<span class="w">注意 ${w}</span>`:'注意 0'}`;
     h+=`<div class="verdict"><div class="big">${big}${g.pass?'<span class="passbadge">合格</span>':''}</div><div class="sub">${r.complete?`減点 ${g.total}(重い誤り3点・中くらい2点・軽い1点)`:`未入力 ${r.missing}音(採点は書き終えてから)`}</div></div>`;
   }
   h+=compareBox();
@@ -484,7 +537,7 @@ function drawPracticePanel(r){
   h+=`<dl class="stats"><div><dt>拍頭での反行の割合</dt><dd>${st.moves?Math.round(st.contra/st.moves*100)+'%':'―'}</dd></div><div><dt>途中の拍頭の完全協和</dt><dd>${st.perf}回</dd></div><div><dt>対旋律の音域</dt><dd>${st.span?st.span+'度':'―'}</dd></div><div><dt>跳躍(3度以上)</dt><dd>${st.leaps}回</dd></div></dl>`;
   if(judge){
     h+=`<h2>指摘<span>${r.issues.length}件 · クリックで該当箇所を再生</span></h2>`;
-    if(!r.issues.length)h+=r.complete?`<div class="ok"><b>よくできました。</b>${SPECIES[state.sp].name}の規則をすべて満たしています。保存して記録に残しておけます。</div>`:`<div class="ok">いまのところ規則違反はありません。</div>`;
+    if(!r.issues.length)h+=!curV.some(Boolean)?`<div class="ok">対旋律を書くと、ここに指摘が出ます。</div>`:r.complete?`<div class="ok"><b>よくできました。</b>${SPECIES[state.sp].name}の規則をすべて満たしています。保存して記録に残しておけます。</div>`:`<div class="ok">いまのところ規則違反はありません。</div>`;
     else h+=issueList(r.issues);
     if(g.global.length)h+='<div class="issues">'+g.global.map(x=>`<div class="issue gl"><span class="sev warn">全体</span><span><span class="it-title">${x.t}</span><span class="pts">−${x.pts}</span></span><span class="it-x">途中の拍頭は、3度・6度を中心にすると2声部が独立して聞こえます。</span></div>`).join('')+'</div>';
   }
@@ -495,7 +548,7 @@ function drawReviewPanel(r){
   if(!review){$('#panel').innerHTML=`<p class="muted">問題を作っています…</p><p class="toast" role="status">${toastMsg}</p>`;return;}
   const q=review;let h=`<div class="mission"><span class="k">${SPECIES[q.sp].name} · ${q.label||''} · 対旋律が${q.above?'上':'下'} · 第${q.no}問</span>
     <span class="rule">${RULES[q.rule]}</span>
-    <p>この対旋律には「${RULES[q.rule]}」の誤りが1か所あります。音を直して「答え合わせ」を押してください。</p></div>`;
+    <p>この対旋律には「${RULES[q.rule]}」の${q.lv==='warn'?'注意':'誤り'}が1か所あります。音を直して「答え合わせ」を押してください。</p></div>`;
   h+=`<div class="btnrow"><button class="btn primary" type="button" id="rvCheck">答え合わせ</button><button class="btn" type="button" id="rvHint">場所のヒント</button><button class="btn" type="button" id="rvShow">模範解答</button></div>`;
   if(q.result){
     const res=q.result;
@@ -529,7 +582,7 @@ function drawHistory(){
   else h+=L.map(e=>{const d=new Date(e.t),ds=`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     return `<div class="hrow"><div><div class="h-title">${SPECIES[e.sp].name} · ${esc(e.label||(cfEntry(e.mode)||{short:''}).short)} · 対旋律が${e.above?'上':'下'}</div><div class="h-sub">${ds} · 誤り ${e.errs} · 注意 ${e.warns}${e.complete?'':' · 未完成'}${e.preset&&e.preset!==PRESETS.fux.name?` · 基準: ${esc(e.preset)}`:''}</div></div>
       <div class="h-score${e.complete?'':' inc'}">${!e.complete?'未完成':e.pts!=null?`−${e.pts}${e.pass?'<small class="passbadge">合格</small>':''}`:e.score}</div>
-      <div class="h-acts"><button class="btn" type="button" data-hopen="${e.id}">開く</button><button class="btn danger" type="button" data-hdel="${e.id}">${pendingDel===e.id?'本当に削除':'削除'}</button></div></div>`;}).join('');
+      <div class="h-acts"><button class="btn" type="button" data-hopen="${e.id}">${pendingDel==='open:'+e.id?'置き換えて開く':'開く'}</button><button class="btn danger" type="button" data-hdel="${e.id}">${pendingDel===e.id?'本当に削除':'削除'}</button></div></div>`;}).join('');
   $('#histView').innerHTML=h;
   let p=`<h2>よく間違える規則<span>保存した解答と復習の記録</span></h2>${weakHTML(10)}`;
   p+=`<div class="btnrow"><button class="btn primary" type="button" id="goReview">苦手な規則を復習する</button></div>`;
@@ -544,7 +597,7 @@ function drawHistory(){
     <div class="btnrow"><button class="btn danger" type="button" id="imGo">${pendingDel==='import'?'本当に置き換える':'読み込んで置き換える'}</button></div>`;
   if(ioMsg)p+=`<p class="muted">${ioMsg}</p>`;
   p+='</div>';
-  if(L.length||Object.keys(store.stats).length)p+=`<div class="btnrow"><button class="btn danger" type="button" id="wipe">${pendingDel==='*'?'本当にすべて消去':'記録をすべて消去'}</button></div>`;
+  if(L.length||Object.keys(store.stats).length||Object.keys(store.drillStats).length)p+=`<div class="btnrow"><button class="btn danger" type="button" id="wipe">${pendingDel==='*'?'本当にすべて消去':'記録をすべて消去'}</button></div>`;
   p+=`<p class="toast" role="status">${toastMsg}</p>`;
   $('#panel').innerHTML=p;
 }
@@ -656,7 +709,8 @@ function hintFill(){
 function fillGuard(key){
   if(!state.fill)return true;
   if(pendingDel==='fill:'+key){pendingDel=null;quitFill();return true;}
-  armDelete('fill:'+key);toast('穴埋め課題の途中です。もう一度押すと、穴埋めをやめて実行します。');return false;
+  const what=state.fill.guided?'「書いてみる」':'穴埋め課題';
+  armDelete('fill:'+key);toast(`${what}の途中です。もう一度押すと、${what}をやめて実行します。`);return false;
 }
 
 /* ================= drills ================= */
@@ -692,7 +746,7 @@ function playScore(sc,vals,dyad){
 }
 async function newDrill(id){
   if(id)drill.id=id;drill.q=null;drill.answered=null;drill.loading=true;const tk=++drill.token;render();
-  let q=null;try{q=await task('drill',{id:drill.id});}catch(e){q=null;}
+  let q=null;try{q=await task('drill',{id:drill.id},'drill');}catch(e){q=null;}
   if(tk!==drill.token)return;
   drill.loading=false;drill.q=q;
   if(!q)toast('問題を作れませんでした。もう一度「次の問題」を押してください。');
@@ -740,6 +794,7 @@ const learnSvgs=[];
 function lessonSc(b,marks){return {sp:b.sp,above:b.above,cf:b.cf,slots:b.slots,vals:b.vals,marks:marks||[],hide:[],pre:{}};}
 function atLabel(at){const p=GLs.pos(at),beat=p.b+1;return `第${p.m+1}小節${p.b?(Number.isInteger(beat)?` ${beat}拍目`:` ${Math.floor(beat)}拍目の後半`):''}`;}
 function issueKey(x){return x.id+':'+x.cols.join(',');}
+const issueLis=list=>`<ul class="lissues">${list.map(x=>`<li><span class="sev ${x.lv}">${x.lv==='err'?'誤り':'注意'}</span><b>${esc(x.t)}</b> ${esc(x.x)}</li>`).join('')}</ul>`;
 function drawLearn(){
   const L=GLs.LESSONS[learn.sp];learnSvgs.length=0;
   $('#lnSp').innerHTML=[1,2,3,4,5].map(k=>`<button type="button" data-lsp="${k}" aria-pressed="${k===learn.sp}">${SPECIES[k].name}<small>${SPECIES[k].ratio}</small></button>`).join('');
@@ -767,11 +822,13 @@ function drawLearn(){
       const orig=GLs.build(learn.sp,ex),bb=GLs.build(learn.sp,ex,bd.change),b=fixed?orig:bb;
       const base=new Set(GLs.analyzeBuilt(orig).issues.map(issueKey));
       const added=GLs.analyzeBuilt(bb).issues.filter(x=>!base.has(issueKey(x)));
+      // The point of the example comes first; findings the change causes on the way are listed apart.
+      const side=added.filter(x=>x.id!==bd.rule);
       const k=learnSvgs.length;learnSvgs.push({sc:lessonSc(b,bb.changed),b});
       h+=`<section class="lex"><div class="lex-head"><h3>${esc(bd.title)}</h3><span class="muted">${esc(L.examples[bd.ex].title)}の模範例から</span></div>
         <div class="staff-scroll"><svg class="lsvg" data-k="${k}" role="img" aria-label="${esc(bd.title)}の例"></svg></div>
         <div class="btnrow"><button class="btn primary" type="button" data-lplay="${k}">▶ 聴く</button><button class="btn" type="button" data-lfix="${i}" aria-pressed="${fixed}">${fixed?'悪い例に戻す':'直す'}</button></div>
-        ${fixed?`<p class="res-ok">原例に戻しました。枠の音を聴き比べてください。</p>`:`<ul class="lissues">${added.map(x=>`<li><span class="sev ${x.lv}">${x.lv==='err'?'誤り':'注意'}</span><b>${esc(x.t)}</b> ${esc(x.x)}</li>`).join('')}</ul>`}
+        ${fixed?`<p class="res-ok">原例に戻しました。枠の音を聴き比べてください。</p>`:issueLis(added.filter(x=>x.id===bd.rule))+(side.length?`<p class="lside-note">1音を変えたため、ほかにも次の指摘が出ます。</p>${issueLis(side)}`:'')}
         <p class="lfix"><b>直し方</b> ${esc(bd.text)}</p></section>`;
     });
   }else{
@@ -849,7 +906,7 @@ function drawMbar(r){
   b.hidden=false;
   if(state.view==='review'){b.innerHTML=`<span>復習:${review?RULES[review.rule]:'問題を作っています…'}</span><span>操作へ ↓</span>`;return;}
   const {e,w}=scoreOf(r);
-  const left=!showJudg()?`答え合わせ前${r.complete?'':` · 未入力 ${r.missing}音`}`:(!e&&!w?'<span class="good">規則違反なし</span>':`<span class="e">誤り ${e}</span> · <span class="w">注意 ${w}</span>`)+(r.complete||!showJudg()?'':` · 未入力 ${r.missing}`);
+  const left=!curV.some(Boolean)?`まだ音がありません · 未入力 ${r.missing}音`:!showJudg()?`答え合わせ前${r.complete?'':` · 未入力 ${r.missing}音`}`:(!e&&!w?`<span class="good">${r.complete?'規則違反なし':'いまのところ違反なし'}</span>`:`<span class="e">誤り ${e}</span> · <span class="w">注意 ${w}</span>`)+(r.complete||!showJudg()?'':` · 未入力 ${r.missing}`);
   b.innerHTML=`<span>${left}</span><span>指摘を見る ↓</span>`;
 }
 function render(){
@@ -909,6 +966,12 @@ function openHistory(id){
   state.hist=[];state.future=[];state.focus=[];state.example=false;state.compare=null;state.checkedSig=null;state.sel=0;state.view='practice';saveDraft();
   toast('記録の解答を開きました。');
 }
+// Opening a record replaces the draft kept for the same species, cantus firmus and voice position.
+function openConflict(id){
+  const e=store.history.find(x=>x.id===id);if(!e)return false;const d=store.drafts[e.key];
+  if(!d||!d.cp||!Object.keys(d.cp).length)return false;
+  return JSON.stringify({cp:d.cp,rhythm:d.rhythm||[],ties:d.ties||[]})!==JSON.stringify({cp:e.cp,rhythm:e.rhythm||[],ties:e.ties||[]});
+}
 function pickRule(exclude){
   const rows=weakRows().filter(x=>INJECT[x.id]&&x.p>0&&x.id!==exclude).slice(0,4).map(x=>x.id);
   const pool=rows.length?rows:['parallel','hidden','dissonance','leading','leapAug','weakdis','susp','unison'].filter(x=>x!==exclude);
@@ -922,7 +985,7 @@ async function startReview(rule){
   const token=++reviewToken;
   let q=null,r=rule||pickRule(prevRule);
   for(let k=0;k<4&&!q;k++){
-    try{q=await task('question',{rule:r,prefSp:store.stats[r]&&store.stats[r].sp});}catch(e){q=null;}
+    try{q=await task('question',{rule:r,prefSp:store.stats[r]&&store.stats[r].sp},'review');}catch(e){q=null;}
     if(token!==reviewToken||state.view!=='review')return;
     if(!q)r=pickRule(r);
   }
@@ -1021,10 +1084,19 @@ function importFrom(text){
   let o;try{o=JSON.parse(text);}catch(e){ioMsg='読み込めませんでした。書き出したときのテキストをそのまま貼り付けてください。';render();return;}
   const d=o&&o.app==='gradus'&&o.data?o.data:null;
   if(!d||typeof d!=='object'||!Array.isArray(d.history||[])){ioMsg='Gradus の記録として読み取れませんでした。';render();return;}
-  store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...d};normStore();persist();
+  store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...d};normStore();persistNow();
   ioMode=null;ioText='';ioMsg='';pendingDel=null;
-  const pf=store.prefs;if(SPECIES[pf.sp])state.sp=pf.sp;state.mode=cfEntry(pf.mode)?pf.mode:'dorian';state.above=pf.above!==false;state.levels=cleanLevels(pf.levels);state.zoom=ZOOMS.includes(pf.zoom)?pf.zoom:1;$('#zoomSel').value=String(state.zoom);
+  applyPrefs(store.prefs);
   refreshCfSelect();loadDraft();toast(`記録を読み込みました(保存した解答 ${store.history.length}件)。`);
+}
+
+// Used at start-up and after an import, so an imported record brings its settings along (MIDI stays as it is).
+function applyPrefs(pf){
+  state.sp=SPECIES[pf.sp]?pf.sp:1;state.mode=cfEntry(pf.mode)?pf.mode:'dorian';state.above=pf.above!==false;
+  state.hints=pf.hint===true;state.zoom=ZOOMS.includes(pf.zoom)?pf.zoom:1;$('#zoomSel').value=String(state.zoom);state.levels=cleanLevels(pf.levels);
+  state.fb=pf.fb==='check'?'check':'live';state.ivMode=['raw','simple','quality'].includes(pf.ivMode)?pf.ivMode:'raw';
+  const tp=+pf.tempo,t=$('#tempo');
+  if(tp>=+t.min&&tp<=+t.max){t.value=tp;$('#tempoVal').textContent='♩ = '+tp;}
 }
 
 /* ================= MIDI keyboard (step input) ================= */
@@ -1105,6 +1177,8 @@ $('#miniMap').addEventListener('click',e=>{const b=e.target.closest('[data-mm]')
   const j=curS.findIndex(s=>s.m===m&&editable(s));if(j>=0&&state.view==='practice'){state.sel=j;render();}else syncMiniFrame();});
 $('#zoomSel').addEventListener('change',e=>{const z=+e.target.value;state.zoom=ZOOMS.includes(z)?z:1;savePrefs();render();});
 addEventListener('resize',()=>{drawMiniMap();followStaff();});
+// The staff's width changes once the music fonts load, which can make it start (or stop) overflowing.
+if(window.ResizeObserver)new ResizeObserver(()=>{drawMiniMap();}).observe(svgEl);
 matchMedia('(max-width:920px)').addEventListener('change',()=>render());
 svgEl.addEventListener('pointermove',e=>{const g=$('#ghost');if(!g)return;if(e.pointerType!=='mouse'){g.innerHTML='';return;}
   const p=pt(e);if(!p||(curV[p.i]&&curV[p.i].s===p.s)){g.innerHTML='';return;}
@@ -1163,7 +1237,7 @@ $('#panel').addEventListener('click',e=>{
   else if(id==='imOpen'){ioMode='import';ioText='';ioMsg='';render();}
   else if(id==='imGo'){const t=$('#imText').value.trim();if(!t){ioMsg='読み込むテキストがありません。';render();return;}
     if(pendingDel!=='import'){ioText=t;armDelete('import');return;}importFrom(t);}
-  else if(id==='wipe'){if(pendingDel!=='*'){armDelete('*');return;}store.history=[];store.stats={};persist();pendingDel=null;toast('記録を消去しました。');}
+  else if(id==='wipe'){if(pendingDel!=='*'){armDelete('*');return;}store.history=[];store.stats={};store.drillStats={};persist();pendingDel=null;toast('記録(保存した解答・よく間違える規則・ドリルの成績)を消去しました。');}
 });
 $('#panel').addEventListener('change',e=>{
   if(e.target.id!=='imFile'||!e.target.files||!e.target.files[0])return;
@@ -1174,12 +1248,16 @@ $('#drillList').addEventListener('click',e=>{const b=e.target.closest('[data-dri
 $('#drPlay').addEventListener('click',playSnippet);
 $('#histView').addEventListener('click',e=>{
   const o=e.target.closest('[data-hopen]'),d=e.target.closest('[data-hdel]');
-  if(o)openHistory(o.dataset.hopen);
+  if(o){const id=o.dataset.hopen;
+    if(openConflict(id)&&pendingDel!=='open:'+id){armDelete('open:'+id);toast('同じ類・定旋律・位置の書きかけの解答があります。開くと置き換わります。もう一度押すと開きます。');return;}
+    pendingDel=null;openHistory(id);}
   if(d){const id=d.dataset.hdel;if(pendingDel!==id){armDelete(id);return;}store.history=store.history.filter(x=>x.id!==id);pendingDel=null;persist();toast('削除しました。');}
 });
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{
-  const v=b.dataset.view;if(v===state.view)return;if(state.playing)stopPlayback();closeDrawer();
-  if(state.fill)quitFill();
+  const v=b.dataset.view;if(v===state.view)return;
+  // Leaving the practice screen ends a fill-in or guided task, so ask once instead of dropping the work silently.
+  if(!fillGuard('view:'+v))return;
+  if(state.playing)stopPlayback();closeDrawer();
   if(v==='review'){startReview();return;}
   leaveReview();state.view=v;ioMode=null;ioMsg='';render();
   if(v==='drill'&&!drill.q&&!drill.loading)newDrill();}));
@@ -1232,10 +1310,12 @@ const spSeg=$('#spSeg');[1,2,3,4,5].forEach(k=>{const b=document.createElement('
 spSeg.addEventListener('click',e=>{const b=e.target.closest('[data-sp]');if(!b||+b.dataset.sp===state.sp)return;if(!fillGuard('sp'))return;if(state.playing)stopPlayback();saveDraft();state.sp=+b.dataset.sp;loadDraft();saveDraft();render();});
 sel.addEventListener('change',()=>{cfMsg='';switchCF(sel.value);});
 $('#quickGen').addEventListener('click',()=>{if(!fillGuard('gen'))return;cfMsg='';generateNew();});
-$('#genBtn').addEventListener('click',()=>{cfMsg='';generateNew();});
-$('#cfAdd').addEventListener('click',addCustom);
-$('#cfText').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCustom();}});
+// The drawer's buttons also switch the cantus firmus, so they need the same guard as the task bar while a fill-in is open.
+$('#genBtn').addEventListener('click',()=>{if(!fillGuard('gen'))return;cfMsg='';generateNew();});
+$('#cfAdd').addEventListener('click',()=>{if(!fillGuard('add'))return;addCustom();});
+$('#cfText').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(!fillGuard('add'))return;addCustom();}});
 $('#paneCf').addEventListener('click',e=>{if(e.target.id!=='cfDel')return;const id=state.mode;
+  if(!fillGuard('del'))return;
   if(pendingDel!=='cf:'+id){armDelete('cf:'+id);return;}
   pendingDel=null;removeCF(id);cfMsg='';state.mode='dorian';loadDraft();saveDraft();refreshCfSelect();render();toast('定旋律を削除しました(保存した解答の記録は残ります)。');});
 function setPos(ab){if(state.above===ab)return;if(!fillGuard('pos'))return;if(state.playing)stopPlayback();saveDraft();state.above=ab;loadDraft();saveDraft();render();}
@@ -1255,9 +1335,7 @@ $('#fillBtn').addEventListener('click',()=>{if(state.fill){toast('穴埋め課�
 /* ================= boot ================= */
 loadStore();
 const pf=store.prefs||{};
-if(SPECIES[pf.sp])state.sp=pf.sp;if(cfEntry(pf.mode))state.mode=pf.mode;state.above=pf.above!==false;
-state.hints=pf.hint===true;state.zoom=ZOOMS.includes(pf.zoom)?pf.zoom:1;$('#zoomSel').value=String(state.zoom);state.levels=cleanLevels(pf.levels);state.fb=pf.fb==='check'?'check':'live';state.ivMode=['raw','simple','quality'].includes(pf.ivMode)?pf.ivMode:'raw';
-if(pf.tempo){$('#tempo').value=pf.tempo;$('#tempoVal').textContent='♩ = '+pf.tempo;}
+applyPrefs(pf);
 if(navigator.requestMIDIAccess){
   $('#midiBtn').hidden=false;
   $('#midiBtn').addEventListener('click',()=>{if(midiOn)midiDisable();else midiEnable(false);});

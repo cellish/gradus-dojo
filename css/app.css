@@ -81,7 +81,6 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .minimap[hidden]{display:none}
 .mm-bar{min-width:0;height:26px;padding:0;border:0;border-radius:4px;background:var(--surface);color:var(--faint);font:500 11px/26px "IBM Plex Mono",monospace;cursor:pointer}
 .mm-frame{position:absolute;top:1px;bottom:1px;border:2px solid var(--accent);border-radius:6px;pointer-events:none;box-sizing:border-box}
-@media (min-width:921px){.minimap{display:none!important}}
 #staff{display:block;max-width:none;touch-action:manipulation;cursor:crosshair;user-select:none;-webkit-user-select:none}
 
 .editor{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--hair)}
@@ -332,11 +331,14 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .lfix{margin:4px 18px 0;font-size:14px;line-height:1.7;padding:10px 12px;border-radius:8px;background:var(--surface-2)}
 .lfix b{margin-right:8px}
 .lex .res-ok{margin:0 18px}
+.lside-note{margin:10px 18px 0;font-size:13px;color:var(--muted)}
 .lside{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.6}
 .lside b{font-weight:700}
 
 /* ---- ドリル ---- */
 .drill-card{display:flex;flex-direction:column}
+/* Short drill excerpts (often 1–2 bars) sit in the middle; auto margins fall back to 0 when the excerpt is wider than the card, so it still scrolls. */
+#drStaff{display:block;margin-inline:auto}
 .drill-list{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px;border-bottom:1px solid var(--hair);background:var(--surface-2);border-radius:12px 12px 0 0}
 .drill-list button{font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:999px;padding:5px 12px;min-height:34px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}
 .drill-list button small{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
