@@ -207,9 +207,15 @@ function playAll(override){
   if(v!=='cp')c.forEach((note,m)=>tone(freq(note),t0+m*4*q,m===n-1?6*q:4*q*0.98,-0.3));
   curS.forEach((s,i)=>{const ts=t0+(s.m*4+s.b)*q;
     if(v!=='cf'&&V[i]&&s.tiedFrom==null){let dur=s.dur;if(s.tieTo!=null)dur+=curS[s.tieTo].dur;tone(freq(V[i]),ts,(s.m===n-1?6:dur)*q*0.96,0.3);}
-    timers.push(setTimeout(()=>{state.playSlot=i;drawStaff(lastR);},Math.max(0,(ts-ac.currentTime)*1000)));});
+    timers.push(setTimeout(()=>markPlaying(i),Math.max(0,(ts-ac.currentTime)*1000)));});
   timers.push(setTimeout(()=>stopPlayback(false),(t0+n*4*q+0.8-ac.currentTime)*1000));
   render();
+}
+function markPlaying(i){
+  state.playSlot=i;const r=geo&&document.getElementById('playMark');
+  if(!r){drawStaff(lastR);return;} // hand-drawn fallback staff: redraw as before
+  r.setAttribute('x',geo.slotL[i]+2);r.setAttribute('width',Math.max(6,geo.slotR[i]-geo.slotL[i]-4));r.removeAttribute('visibility');
+  followStaff();
 }
 function stopPlayback(cut=true){timers.forEach(clearTimeout);timers=[];if(cut)stopAll();state.playing=false;state.playSlot=-1;render();}
 
@@ -354,7 +360,9 @@ function drawStaffVF(r){
   if(judge)r.issues.forEach(is=>is.cols.forEach(i=>{if(is.lv==='err')lv[i]='err';else if(!lv[i])lv[i]='warn';}));
   const tt=geo.top-16,tb=geo.bottom+16;let s='';
   const box=(i,cls)=>`<rect class="${cls}" x="${geo.slotL[i]+2}" y="${tt}" width="${Math.max(6,geo.slotR[i]-geo.slotL[i]-4)}" height="${tb-tt}" rx="6"/>`;
-  for(let i=0;i<S.length;i++){if(lv[i])s+=box(i,'t-'+lv[i]);if(i===state.playSlot)s+=box(i,'t-play');}
+  for(let i=0;i<S.length;i++){if(lv[i])s+=box(i,'t-'+lv[i]);}
+  // One playback frame, moved note by note by markPlaying() instead of redrawing the whole staff.
+  if(state.playing)s+=box(Math.max(0,state.playSlot),'t-play').replace('<rect','<rect id="playMark"'+(state.playSlot<0?' visibility="hidden"':''));
   if(state.fill)S.forEach((sl,i)=>{if(state.fill.blanks.includes(skey(sl)))s+=box(i,'t-blank');});
   if(!state.playing)s+=box(state.sel,'t-sel');
   if(state.focus.length){const a=Math.min(...state.focus),b=Math.max(...state.focus);
@@ -491,7 +499,8 @@ function where(cols){const a=curS[Math.min(...cols)],b=curS[Math.max(...cols)];
   const f=s=>state.sp===1||s.b===0&&curS.filter(t=>t.m===s.m).length===1?`${s.m+1}`:`${s.m+1}-${Number.isInteger(s.b)?s.b+1:Math.floor(s.b)+1+'後'}`;
   return a===b?`第${f(a)}`:`第${f(a)}〜${f(b)}`;}
 let toastT=null,toastMsg='';
-function toast(m){toastMsg=m;clearTimeout(toastT);toastT=setTimeout(()=>{toastMsg='';render();},5500);render();}
+// Clearing a message only empties the message line; the rest of the screen has not changed.
+function toast(m){toastMsg=m;clearTimeout(toastT);toastT=setTimeout(()=>{toastMsg='';document.querySelectorAll('.toast').forEach(el=>{el.textContent='';});},5500);render();}
 function issueList(list){
   return '<div class="issues">'+list.map(it=>`<button class="issue" type="button" data-issue="${lastR.issues.indexOf(it)}"><span class="sev ${it.lv}">${it.lv==='err'?'誤り':'注意'}</span><span><span class="it-title">${it.t}</span><span class="it-where">${where(it.cols)}</span><span class="pts">−${ptsOf(it)}</span></span><span class="it-x">${it.x}</span></button>`).join('')+'</div>';
 }
