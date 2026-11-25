@@ -104,7 +104,8 @@ VexFlow が使えないときは手描き表示(`drawStaffLegacy`)に切り替�
 - 1項目=1コミット。テストが通ってから。
 
 ## ドキュメント更新
-- 作業の終わりに STATUS.md を上書き更新（50行以内）
-- 完了した作業は PLAN.md から削除
+- 作業の終わりに STATUS.md を上書き更新（50行以内、updated を更新）
+- 完了した作業は PLAN.md から削除し、STATUS の「実装済み」に要約
 - 外部素材を追加・削除したら THIRD_PARTY_NOTICES.md を更新
-- 詳細方針は道場シリーズ親フォルダの CLAUDE.md（DOCS-POLICY.md）を参照
+- OS・ブラウザ対応が変わったら STATUS の os: と対応状況を更新（未確認を「対応」と書かない）
+- 詳細方針は道場シリーズ親フォルダの DOCS-POLICY.md を参照

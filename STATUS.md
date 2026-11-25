@@ -3,6 +3,11 @@ app: Gradus 対位法ドリル
 stage: 試作          # 構想 / 試作 / 公開中 / 保守
 url:                 # 未公開(Claude上のページは非公開。GitHub Pages は無効)
 updated: 2026-11-26
+os:                  # 対応 / 一部制限 / 非対応 / 未確認
+  macos: 一部制限
+  ios: 一部制限        # iPadOS を含む
+  windows: 未確認
+  android: 未確認
 ---
 ## 実装済み（要約）
 - フックスの類別対位法(第1〜5類・2声)を、書く・聴く・判定を受ける・学ぶの4つで練習するブラウザアプリ(PWA、ビルドなし)
@@ -25,8 +30,8 @@ updated: 2026-11-26
 - 書法コア(綴り・音程・判定): 独自実装(`js/engine.js`)
 - 楽譜の浄書: 独自実装(VexFlow 5 を同梱。リハモ道場と同じファイル)
 - MIDI 入力・音(Web Audio): 独自実装
-## OS対応状況
-- macOS: 対応(Chrome・Edge。MIDI のステップ入力も使える。Safari は Web MIDI が無く MIDI 入力不可)
-- iOS / iPadOS: 一部制限(Safari は Web MIDI に対応しないため MIDI 入力は使えず、ボタンも出ない。ホーム画面に追加して PWA として使う。実機確認の記録なし)
-- Windows: 未確認(Chrome・Edge でのインストール手順は README にある)
-- Android: 未確認(Chrome でのインストール手順は README にある)
+## OS / ブラウザ対応状況
+- macOS: Chrome 対応(計算部のテストと表示の確認。2026-11 確認) / Safari 一部制限(Web MIDI が無く、MIDI 入力とそのボタンが出ない。README の記載で、実機は未確認)
+- iOS / iPadOS: 一部制限(Safari を含む iOS のブラウザは Web MIDI が無く、MIDI 入力は使えない。ホーム画面に追加して PWA として使う。README の記載で、実機は未確認)
+- Windows: Chrome / Edge 未確認(インストール手順は README にある)
+- Android: Chrome 未確認(インストール手順は README にある)
