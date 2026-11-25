@@ -336,6 +336,8 @@ input[type=range]{accent-color:var(--accent);width:110px}
 
 /* ---- ドリル ---- */
 .drill-card{display:flex;flex-direction:column}
+/* Short drill excerpts (often 1–2 bars) sit in the middle; auto margins fall back to 0 when the excerpt is wider than the card, so it still scrolls. */
+#drStaff{display:block;margin-inline:auto}
 .drill-list{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px;border-bottom:1px solid var(--hair);background:var(--surface-2);border-radius:12px 12px 0 0}
 .drill-list button{font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--hair);border-radius:999px;padding:5px 12px;min-height:34px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}
 .drill-list button small{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
