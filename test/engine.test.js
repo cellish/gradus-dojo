@@ -249,6 +249,10 @@ t('lessons: Fux examples, bad examples and guided tasks',()=>{
       const base=new Set(L.analyzeBuilt(orig).issues.map(x=>x.id+':'+x.cols));
       const added=L.analyzeBuilt(bb).issues.filter(x=>!base.has(x.id+':'+x.cols));
       assert(added.some(x=>x.id===bd.rule),`sp${sp} bad "${bd.title}" lacks ${bd.rule}`);
+      // A bad example should show its one point. These three have no single-note change that does so;
+      // the screen lists their side findings apart.
+      const mixed=['3:拍頭の不協和','4:上へ解決する掛留','5:不協和の飾り'];
+      if(!mixed.includes(sp+':'+bd.title))assert(added.every(x=>x.id===bd.rule),`sp${sp} bad "${bd.title}" also adds ${added.map(x=>x.id)}`);
     });
     const g=les.guided,cf=G.FUX_NOTES[g.mode];
     assert(G.solveFor(sp,cf,g.above,sp===5?G.defaultRhythm(cf.length):[],[],3000),`guided sp${sp} unsolvable`);

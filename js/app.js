@@ -794,6 +794,7 @@ const learnSvgs=[];
 function lessonSc(b,marks){return {sp:b.sp,above:b.above,cf:b.cf,slots:b.slots,vals:b.vals,marks:marks||[],hide:[],pre:{}};}
 function atLabel(at){const p=GLs.pos(at),beat=p.b+1;return `第${p.m+1}小節${p.b?(Number.isInteger(beat)?` ${beat}拍目`:` ${Math.floor(beat)}拍目の後半`):''}`;}
 function issueKey(x){return x.id+':'+x.cols.join(',');}
+const issueLis=list=>`<ul class="lissues">${list.map(x=>`<li><span class="sev ${x.lv}">${x.lv==='err'?'誤り':'注意'}</span><b>${esc(x.t)}</b> ${esc(x.x)}</li>`).join('')}</ul>`;
 function drawLearn(){
   const L=GLs.LESSONS[learn.sp];learnSvgs.length=0;
   $('#lnSp').innerHTML=[1,2,3,4,5].map(k=>`<button type="button" data-lsp="${k}" aria-pressed="${k===learn.sp}">${SPECIES[k].name}<small>${SPECIES[k].ratio}</small></button>`).join('');
@@ -821,11 +822,13 @@ function drawLearn(){
       const orig=GLs.build(learn.sp,ex),bb=GLs.build(learn.sp,ex,bd.change),b=fixed?orig:bb;
       const base=new Set(GLs.analyzeBuilt(orig).issues.map(issueKey));
       const added=GLs.analyzeBuilt(bb).issues.filter(x=>!base.has(issueKey(x)));
+      // The point of the example comes first; findings the change causes on the way are listed apart.
+      const side=added.filter(x=>x.id!==bd.rule);
       const k=learnSvgs.length;learnSvgs.push({sc:lessonSc(b,bb.changed),b});
       h+=`<section class="lex"><div class="lex-head"><h3>${esc(bd.title)}</h3><span class="muted">${esc(L.examples[bd.ex].title)}の模範例から</span></div>
         <div class="staff-scroll"><svg class="lsvg" data-k="${k}" role="img" aria-label="${esc(bd.title)}の例"></svg></div>
         <div class="btnrow"><button class="btn primary" type="button" data-lplay="${k}">▶ 聴く</button><button class="btn" type="button" data-lfix="${i}" aria-pressed="${fixed}">${fixed?'悪い例に戻す':'直す'}</button></div>
-        ${fixed?`<p class="res-ok">原例に戻しました。枠の音を聴き比べてください。</p>`:`<ul class="lissues">${added.map(x=>`<li><span class="sev ${x.lv}">${x.lv==='err'?'誤り':'注意'}</span><b>${esc(x.t)}</b> ${esc(x.x)}</li>`).join('')}</ul>`}
+        ${fixed?`<p class="res-ok">原例に戻しました。枠の音を聴き比べてください。</p>`:issueLis(added.filter(x=>x.id===bd.rule))+(side.length?`<p class="lside-note">1音を変えたため、ほかにも次の指摘が出ます。</p>${issueLis(side)}`:'')}
         <p class="lfix"><b>直し方</b> ${esc(bd.text)}</p></section>`;
     });
   }else{

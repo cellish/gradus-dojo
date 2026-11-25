@@ -331,6 +331,7 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .lfix{margin:4px 18px 0;font-size:14px;line-height:1.7;padding:10px 12px;border-radius:8px;background:var(--surface-2)}
 .lfix b{margin-right:8px}
 .lex .res-ok{margin:0 18px}
+.lside-note{margin:10px 18px 0;font-size:13px;color:var(--muted)}
 .lside{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.6}
 .lside b{font-weight:700}
 
