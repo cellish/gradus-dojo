@@ -544,7 +544,7 @@ function drawHistory(){
     <div class="btnrow"><button class="btn danger" type="button" id="imGo">${pendingDel==='import'?'本当に置き換える':'読み込んで置き換える'}</button></div>`;
   if(ioMsg)p+=`<p class="muted">${ioMsg}</p>`;
   p+='</div>';
-  if(L.length||Object.keys(store.stats).length)p+=`<div class="btnrow"><button class="btn danger" type="button" id="wipe">${pendingDel==='*'?'本当にすべて消去':'記録をすべて消去'}</button></div>`;
+  if(L.length||Object.keys(store.stats).length||Object.keys(store.drillStats).length)p+=`<div class="btnrow"><button class="btn danger" type="button" id="wipe">${pendingDel==='*'?'本当にすべて消去':'記録をすべて消去'}</button></div>`;
   p+=`<p class="toast" role="status">${toastMsg}</p>`;
   $('#panel').innerHTML=p;
 }
@@ -1170,7 +1170,7 @@ $('#panel').addEventListener('click',e=>{
   else if(id==='imOpen'){ioMode='import';ioText='';ioMsg='';render();}
   else if(id==='imGo'){const t=$('#imText').value.trim();if(!t){ioMsg='読み込むテキストがありません。';render();return;}
     if(pendingDel!=='import'){ioText=t;armDelete('import');return;}importFrom(t);}
-  else if(id==='wipe'){if(pendingDel!=='*'){armDelete('*');return;}store.history=[];store.stats={};persist();pendingDel=null;toast('記録を消去しました。');}
+  else if(id==='wipe'){if(pendingDel!=='*'){armDelete('*');return;}store.history=[];store.stats={};store.drillStats={};persist();pendingDel=null;toast('記録(保存した解答・よく間違える規則・ドリルの成績)を消去しました。');}
 });
 $('#panel').addEventListener('change',e=>{
   if(e.target.id!=='imFile'||!e.target.files||!e.target.files[0])return;
