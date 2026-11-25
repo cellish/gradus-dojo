@@ -41,6 +41,15 @@ t('solver finds error-free answers for every Fux cf, species and voice',()=>{
     assert(r.complete);
   }
 });
+t('solver restarts: species 3 answers are almost always free of warnings',()=>{
+  // Before restarts, about 1 in 7 searches spent the whole strict budget and returned an answer with a warning.
+  let withFindings=0;
+  for(let r=0;r<2;r++)for(const [k] of G.FUX)for(const above of [true,false]){
+    const c=G.FUX_NOTES[k],S=G.buildSlots(3,c.length,[],[]),s=G.solve(3,c,above,S,[],[],2500);assert(s,k);
+    if(G.analyze({sp:3,cf:c,above,slots:S,vals:G.valsOf(S,s),rhythm:[],ties:[]}).issues.length)withFindings++;
+  }
+  assert(withFindings<=4,'answers with findings: '+withFindings+'/24');
+});
 t('generated cantus firmi obey cf rules',()=>{
   for(const m of Object.keys(G.MODES))for(let i=0;i<5;i++){
     const c=G.genCF(m,10);assert(c,'gen failed '+m);

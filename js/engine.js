@@ -311,8 +311,20 @@ function grade(r,c){
 
 /* ================= solver ================= */
 const STRICT=new Set(['beatpar','comp','sixth','spacing','range','twoLeaps','repeat','climax','run','eighthUp','eighthMany']);
+// The randomized depth-first search has a heavy tail: one unlucky early choice can keep it backtracking until the
+// time limit. So the strict pass restarts with fresh random orders and a growing time slice, keeping the answer
+// with the fewest findings. It returns as soon as one has none, or when several restarts in a row bring no
+// improvement (some cantus firmi admit no answer free of warnings, and searching on only burns time).
 function solve(sp,cf,above,S,rhythm,ties,limitMs){
-  return solveOnce(sp,cf,above,S,rhythm,ties,limitMs*0.6,true)||solveOnce(sp,cf,above,S,rhythm,ties,limitMs*0.4,false);
+  const t0=performance.now(),strictMs=limitMs*0.6;let best=null,bestW=Infinity,slice=80,stale=0;
+  while(performance.now()-t0<strictMs&&!(best&&stale>=4)){
+    const r=solveOnce(sp,cf,above,S,rhythm,ties,Math.min(slice,strictMs-(performance.now()-t0)),true);
+    stale++;
+    if(r){const w=analyze({sp,cf,above,slots:S,vals:valsOf(S,r),rhythm,ties}).issues.length;
+      if(w<bestW){bestW=w;best=r;stale=0;}if(w===0)return r;}
+    slice*=1.5;
+  }
+  return best||solveOnce(sp,cf,above,S,rhythm,ties,limitMs*0.4,false);
 }
 function solveOnce(sp,cf,above,S,rhythm,ties,limitMs,strict){
   const n=cf.length,L=S.length,ss=cf.map(x=>x.s);
