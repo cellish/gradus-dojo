@@ -10,31 +10,30 @@ const LEFT=78; // 五線の左余白(スロットのx座標計算に使う)
 const LETTERS=['C','D','E','F','G','A','B'];
 const PC=[0,2,4,5,7,9,11];
 const QN={P:'完全',M:'長',m:'短',A:'増',d:'減'};
-function N(name){const m=name.match(/^([A-G])([#b]?)(\d)$/);return {s:(+m[3])*7+LETTERS.indexOf(m[1]),a:m[2]==='#'?1:m[2]==='b'?-1:0};}
-const midi=n=>12*(Math.floor(n.s/7)+1)+PC[n.s%7]+n.a;
+// 音高・音程・進行の計算は書法コア(vendor/dojo-shared/core。編集しない。直すときは dojo-shared で)。
+// ここの N・midi・interval・motion は、アプリの音の形 {s, a} とコアの {step, alter} をつなぐ薄い包み。
+const DC=(root.DojoCore&&root.DojoCore.interval)?root.DojoCore
+  :(typeof require!=='undefined'?require('../vendor/dojo-shared/core/src/pitch.js'):null);
+if(!DC)throw new Error('engine.js は vendor/dojo-shared/core/src/pitch.js の後に読み込む');
+const core=n=>({step:n.s,alter:n.a});
+// The app's own notation only: one optional # or b and a single-digit octave (the core reads more, e.g. 'C##4').
+function N(name){
+  if(typeof name!=='string'||!/^[A-G][#b]?\d$/.test(name))throw new TypeError(`音名として読めない: ${name}`);
+  const p=DC.parsePitch(name);return {s:p.step,a:p.alter};
+}
+const midi=n=>DC.toMidi(core(n));
 const nameOf=n=>LETTERS[n.s%7]+(n.a===1?'♯':n.a===-1?'♭':'')+Math.floor(n.s/7);
 const cpy=n=>n?{s:n.s,a:n.a}:null;
-function interval(lo,hi){
-  const d=hi.s-lo.s, semi=midi(hi)-midi(lo), oct=Math.floor(d/7), dn=d%7, ss=semi-12*oct;
-  const PB={0:0,3:5,4:7}, MB={1:2,2:4,5:9,6:11};let q;
-  if(dn in PB){const f=ss-PB[dn];q=f===0?'P':f>0?'A':'d';}
-  else{const f=ss-MB[dn];q=f===0?'M':f===-1?'m':f>0?'A':'d';}
-  const perfect=q==='P'&&(dn===0||dn===4);
-  const cons=perfect||((q==='M'||q==='m')&&(dn===2||dn===5));
-  return {d,dn,q,semi,perfect,cons};
-}
+// {d, dn, q, semi, perfect, cons}。計算はコアの interval(このファイルの旧実装から移したもの)
+const interval=(lo,hi)=>DC.interval(core(lo),core(hi));
 const ivName=v=>`${QN[v.q]}${v.d+1}度`;
 function vInfo(cfN,cpN,above){
   let lo=above?cfN:cpN, hi=above?cpN:cfN, crossed=false;
   if(hi.s<lo.s){crossed=true;[lo,hi]=[hi,lo];}
   const v=interval(lo,hi);v.crossed=crossed;return v;
 }
-function motion(a0,a1,b0,b1){
-  const da=midi(a1)-midi(a0), db=midi(b1)-midi(b0);
-  if(da===0&&db===0)return 'none';
-  if(da===0||db===0)return 'oblique';
-  return Math.sign(da)!==Math.sign(db)?'contrary':'similar';
-}
+// 'none' | 'oblique' | 'contrary' | 'similar'。計算はコアの motion
+const motion=(a0,a1,b0,b1)=>DC.motion(core(a0),core(a1),core(b0),core(b1));
 
 /* ================= data ================= */
 const FUX=[

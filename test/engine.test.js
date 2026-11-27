@@ -15,6 +15,16 @@ t('interval qualities',()=>{
   assert.equal(iv('C4','G4'),'P5');assert.equal(iv('F4','B4'),'A4');assert.equal(iv('B3','F4'),'d5');
   assert.equal(iv('D4','F4'),'m3');assert.equal(iv('C4','E5'),'M10');
 });
+t('note basics come from the dojo-shared core, with the app notation unchanged',()=>{
+  const C=require('../vendor/dojo-shared/core/src/pitch.js');
+  assert.equal(C.version,require('fs').readFileSync(__dirname+'/../vendor/dojo-shared/core/VERSION','utf8').trim());
+  assert.deepEqual(G.N('F#4'),{s:31,a:1});assert.deepEqual(G.N('Bb3'),{s:27,a:-1});
+  for(const bad of ['C##4','F♯4','c4','C10','H4','']) assert.throws(()=>G.N(bad),TypeError,bad); // the core reads these; N must not
+  assert.equal(G.midi(G.N('B#3')),60);
+  const lo=G.N('F4'),hi=G.N('B4');
+  assert.deepEqual(G.interval(lo,hi),C.interval({step:lo.s,alter:lo.a},{step:hi.s,alter:hi.a}));
+  assert.equal(G.motion(G.N('D4'),G.N('C4'),G.N('A4'),G.N('G5')),'contrary');
+});
 t('first species: parallel fifths detected',()=>{
   const cf=G.FUX_NOTES.dorian;
   const r=G.analyze(ctxOf(1,cf,true,notes('A4 C5 B4 A4 D5 C5 E5 D5 D5 C#5 D5')));

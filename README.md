@@ -33,6 +33,7 @@
 ├── sw.js                   オフライン動作のための service worker
 ├── icons/                  アイコン
 ├── vendor/                 VexFlow 5.0.0(楽譜フォント Bravura・Academico 入り)とライセンス文
+│   └── dojo-shared/core/   道場シリーズ共通の書法の部品(音高・音程の計算)
 ├── THIRD_PARTY_NOTICES.md  同梱・利用している他者の著作物
 ├── LICENSE                 著作権表示
 ├── README.md               このファイル

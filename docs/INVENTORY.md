@@ -47,6 +47,7 @@
 - `s` = オクターヴ×7 + 音名番号(C=0 … B=6)、`a` = 臨時記号 −1/0/+1。**C4 = 28**(科学式オクターヴ。`midi()` で C4 = 60)。
 - **異名同音を区別する**(C♯4 = `{s:28,a:1}`、D♭4 = `{s:29,a:-1}`)。重嬰・重変(±2)は扱わない(`N()` の正規表現が `#`/`b` 1つだけ)。
 - 関数: `N('F#4')`(文字→音)、`midi(n)`、`nameOf(n)`(表示用「F♯4」)、`noteStr(n)`(保存用「F#4」)、`cpy(n)`。
+- (2026-11-28 追記)`N`・`midi`・`interval`・`motion` は、書法コア core 0.1.0(`vendor/dojo-shared/core/src/pitch.js`)の `parsePitch`・`toMidi`・`interval`・`motion` を呼ぶ薄い包みになった。`{s,a}` ⇔ `{step,alter}` を読み替えるだけで、入出力と結果は前と同じ。コアは重変化(±2)も扱えるが、`N` は今までどおり `#`/`b` 1つだけを読む。
 - 保存・データ中は文字列(`'D4 F4 E4 …'`)、計算中は `{s,a}`。
 - MIDI からの変換は app.js の `midiToNote`(黒鍵を C♯・E♭・F♯・G♯・B♭ に固定で綴る)。
 - 周波数は app.js の `freq(n) = 440·2^((midi−69)/12)`(平均律)。
@@ -99,7 +100,7 @@
 | MIDI 入力 | あり | app.js `midiEnable`・`onMidi`・`midiNote`・`midiToNote`。Web MIDI、ノートオンだけ。選択中のスロットに入れて次へ進むステップ入力。黒鍵の綴りは固定(`MIDI_SPELL`)。Claude上のページでは使えない旨を表示。 |
 | 音の再生 | あり | app.js `ensureAudio`・`tone`・`playSlot`・`playCols`・`playAll`。Web Audio の発振器(三角波+1オクターヴ上の正弦波、ローパス、エンベロープ)。定旋律を左、対旋律を右へパン。サンプル音源なし。ドリルは `playScore`・`playSnippet`。 |
 | マイク入力・音高判定 | なし | 段階3の候補(`PLAN.md`)。 |
-| 音程・調の計算 | あり | engine.js `interval`・`vInfo`・`motion`・`modeOf`・`melBad`。コードの計算はなし。 |
+| 音程・調の計算 | あり | engine.js `interval`・`vInfo`・`motion`・`modeOf`・`melBad`。`interval`・`motion` の計算は書法コア(core 0.1.0)。コードの計算はなし。 |
 | 規則の判定 | あり | engine.js `analyze(ctx)`。規則 id 33個(`RULES`)、既定の段階 `RULE_LV`、プリセット `PRESETS`(`fux`・`lenient`)。不協和の種類(経過音・刺繍音・カンビアータ・掛留)を `dis[]` に返す。定旋律だけの検査は `cfIssues`。 |
 | 採点 | あり | engine.js `grade(r, ctx)`。罰点表 `POINTS`(3・2・1点)、3度・6度の連続は累進、完全協和の使いすぎは全体減点。合格 = 書き終えていて `err` が0。 |
 | 解答探索 | あり | engine.js `solve`/`solveOnce`/`solveFor`。乱数つき深さ優先探索、時間制限つき。各手で `analyze` を呼ぶ。厳しい段階(`STRICT` の注意も避ける)は、短い時間で乱数を変えて何度もやり直し、見つからなければゆるい段階で探す。Worker で実行(`js/worker.js` `TASKS`、app.js `task()`・`runLocal`。`task` の第3引数(ドリル・復習)が同じ新しい依頼は、古い依頼を打ち切る `supersede`)。 |

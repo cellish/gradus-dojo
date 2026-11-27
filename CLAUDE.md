@@ -33,7 +33,7 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 ## ファイル構成
 
 スクリプトは `<script src>` で順に読み込む普通のスクリプトで、モジュール(import/export)ではない。
-`index.html` の読み込み順が依存関係: `vendor/vexflow-bravura.js` → `js/engine.js` → `js/drills.js` → `js/lessons.js` → `js/score.js` → `js/app.js`。
+`index.html` の読み込み順が依存関係: `vendor/vexflow-bravura.js` → `vendor/dojo-shared/core/src/pitch.js` → `js/engine.js` → `js/drills.js` → `js/lessons.js` → `js/score.js` → `js/app.js`。
 
 | ファイル | 中身 |
 |---|---|
@@ -45,6 +45,7 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 | `js/app.js` | 画面・操作・保存(localStorage)・音(Web Audio)・MIDI。`state`、`render`、各パネルの描画、イベント。 |
 | `css/app.css` | 見た目。色はすべて `:root` のトークン(ライト)と `prefers-color-scheme: dark` / `[data-theme]` の上書き。 |
 | `vendor/` | VexFlow 5.0.0(リハモ道場と同じファイル。編集しない)とライセンス文。 |
+| `vendor/dojo-shared/core/` | 道場シリーズの書法コアのコピー(下の「書法コア」)。**編集しない。** 今読み込むのは `src/pitch.js` だけ。 |
 | `THIRD_PARTY_NOTICES.md` | 同梱・利用している他者の著作物。ライブラリやフォントを足したらここにも書く。 |
 | `test/engine.test.js` | 計算部のテスト。`node test/engine.test.js`。 |
 | `docs/legacy/gradus-v5.html` | 分割前の1ファイル版(v5)。参照用。編集しない。 |
@@ -61,6 +62,7 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 
 **2. 音の表現は `{s, a}`。**
 `s` = オクターヴ×7 + 音名番号(C=0 … B=6)、`a` = 臨時記号(−1/0/+1)。C4 = 28。`midi(n)` で MIDI 番号、`nameOf(n)` で「F♯4」、`noteStr(n)` で保存用の「F#4」。
+`N`・`midi`・`interval`・`motion` は書法コアの関数を呼ぶ薄い包み(`{s, a}` ⇔ コアの `{step, alter}`)。`N` が読むのは今までどおり `[A-G][#b]?数字` だけ。
 音程は**綴りで**判定する(`interval` が `{d, dn, q, perfect, cons}` を返す。`d` は度数−1、`q` は P/M/m/A/d)。MIDI 番号の差で代用しない(増4度と減5度を区別するため)。
 
 **3. 対旋律は「スロット」の並び。**
@@ -90,6 +92,13 @@ VexFlow が使えないときは手描き表示(`drawStaffLegacy`)に切り替�
 
 **9. Claude上のページでは使えないもの。**
 ダウンロード、MIDI、マイク、Service Worker、外部サイトへの fetch。機能は「使えなければ隠す/代替する」で作る(例: 書き出しはテキスト表示でも渡せる)。
+
+## 書法コア(dojo-shared)
+
+- 使っている版: **core 0.1.0**(`vendor/dojo-shared/core/VERSION`)。親フォルダの `dojo-shared/core/` からコピーしたもの。
+- **コアのコピーは直接編集しない。直すときは `dojo-shared` で直して版を上げ、コピーし直す。** アプリの都合はコアの外(engine.js の包み)で吸収する。
+- 取り込み直す手順: `dojo-shared/core/` の `VERSION`・`CHANGELOG.md`・`src/` を `vendor/dojo-shared/core/` に上書きでコピー → 新しく読み込むファイルを `index.html`・`js/worker.js` の `importScripts`・`sw.js` の `SHELL` に足す → `sw.js` の `CACHE` を上げる → `node test/engine.test.js` と画面の確認。コピーとアプリの変更は、dojo-shared の変更とは別のコミット。
+- コアの版で何が変わったかは `vendor/dojo-shared/core/CHANGELOG.md`。判定結果が変わる版(MINOR が上がる)では、変わった判定を作者が確認してから取り込む。
 
 ## 文言の決まり
 
