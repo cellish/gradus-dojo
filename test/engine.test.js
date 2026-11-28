@@ -268,6 +268,46 @@ t('lessons: Fux examples, bad examples and guided tasks',()=>{
     assert(G.solveFor(sp,cf,g.above,sp===5?G.defaultRhythm(cf.length):[],[],3000),`guided sp${sp} unsolvable`);
   }
 });
+t('saved data: gradus-v2 with old rule ids moves to gradus-v3 with the new ids, and gradus-v2 is left as it was',()=>{
+  // a store written before stage 3a: levels changed under the old ids, statistics under old and new ids
+  const v2={drafts:{'1-dorian-above':{cp:{'0:0':{s:33,a:0}},rhythm:[],ties:[]}},history:[{id:'x',sp:1,cp:{},preset:'カスタム'}],
+    prefs:{sp:1,levels:{antiparallel:'warn',leapBig:'off',range:'err',hidden:'warn'}},
+    stats:{leapBig:{n:2,nw:0,r:1,w:0,sp:1,t:5},leap:{n:1,nw:1,r:0,w:2,sp:3,t:9},antiparallel:{n:1,nw:0,r:0,w:0,sp:2,t:3}}};
+  const storage={'gradus-v2':JSON.stringify(v2)},before=storage['gradus-v2'];
+  const get=k=>(k in storage?storage[k]:null);
+  // what app.js loadStore does: read, and if it did not come from gradus-v3, write gradus-v3 (never gradus-v2)
+  const r=G.readStore(get);assert.equal(r.from,'gradus-v2');
+  if(r.from!==G.STORE_KEY)storage[G.STORE_KEY]=JSON.stringify(r.data);
+  assert.equal(G.STORE_KEY,'gradus-v3');
+  assert.equal(storage['gradus-v2'],before,'gradus-v2 must not change');
+  assert.deepEqual(r.data.prefs.levels,{hidden:'warn',contrary:'warn',leap:'off',ambitus:'err'});
+  for(const k of Object.keys(r.data.prefs.levels))assert(G.RULES[k],k);
+  assert.deepEqual(r.data.stats,{leap:{n:3,nw:1,r:1,w:2,sp:3,t:9},contrary:{n:1,nw:0,r:0,w:0,sp:2,t:3}});
+  assert.deepEqual(r.data.drafts,v2.drafts);assert.deepEqual(r.data.history,v2.history);
+  // next start: gradus-v3 is read as it is
+  const r2=G.readStore(get);assert.equal(r2.from,'gradus-v3');assert.deepEqual(r2.data,r.data);
+  // gradus-v3 wins over gradus-v2, and a broken gradus-v3 falls back to gradus-v2
+  storage['gradus-v3']=JSON.stringify({prefs:{levels:{}}});assert.deepEqual(G.readStore(get).data.prefs.levels,{});
+  storage['gradus-v3']='{broken';assert.equal(G.readStore(get).from,'gradus-v2');
+  assert.deepEqual(G.readStore(()=>null),{data:null,from:null});
+});
+t('saved data: migrateIds does not change its input, and reads exported records (format 2, old ids)',()=>{
+  const exported={app:'gradus',format:2,data:{prefs:{levels:{range:'off'}},stats:{antiparallel:{n:1,nw:0,r:0,w:0}}}};
+  const copy=JSON.parse(JSON.stringify(exported)),m=G.migrateIds(exported.data);
+  assert.deepEqual(exported,copy);
+  assert.deepEqual(m.prefs.levels,{ambitus:'off'});assert.deepEqual(Object.keys(m.stats),['contrary']);
+  assert.deepEqual(G.migrateIds({prefs:{levels:{contrary:'warn',antiparallel:'off'}}}).prefs.levels,{contrary:'warn'},'the new id wins');
+  assert.equal(G.migrateIds(null),null);
+  assert.deepEqual(G.RENAMED,{antiparallel:'contrary',leapBig:'leap',range:'ambitus'});
+});
+t('saved data: app.js writes only gradus-v3 and migrates imported records',()=>{
+  const src=require('fs').readFileSync(__dirname+'/../js/app.js','utf8');
+  assert(/const STORE=G\.STORE_KEY;/.test(src));
+  const writes=[...src.matchAll(/localStorage\.(setItem|removeItem)\(([^,)]+)/g)].map(m=>m[2]);
+  assert.deepEqual(writes,['STORE']);
+  assert(/readStore\(k=>localStorage\.getItem\(k\)\)/.test(src));
+  assert(/\.\.\.migrateIds\(d\)/.test(src),'importFrom must migrate old ids');
+});
 t('baseline: analyze, solver, questions and drills match the record (fixed random seed and clock)',()=>{
   // Regenerate only when a rule is changed on purpose: node test/baseline/generate.js
   const want=JSON.parse(require('fs').readFileSync(__dirname+'/baseline/record.json','utf8'));

@@ -520,6 +520,47 @@ function makeQuestion(rule,prefSp){
   return null;
 }
 
+/* ================= saved data (storage keys and rule ids) =================
+ * localStorage は app.js が読み書きする。ここは、読んだ文字列から保存データを決める純粋な部分だけ(Node でテストするため)。
+ * 段階3a で規則 id を改めた(antiparallel→contrary、leapBig→leap、range→ambitus。ruleset の legacyId)ので、
+ * 保存のキーを gradus-v2 から gradus-v3 に移した。gradus-v2 は書き換えず、消さない(古い版に戻しても設定が残るように)。 */
+const STORE_KEY='gradus-v3',OLD_STORE_KEY='gradus-v2';
+const RENAMED={};RULESET.rules.forEach(e=>{if(e.legacyId)RENAMED[e.legacyId]=e.rule;});
+const isPlain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);
+// 保存データ(または書き出した記録の data)の中の規則 id を新しい id に直したコピーを返す。元のデータは変えない。
+// 規則 id が入るのは prefs.levels(判定の基準)と stats(よく間違える規則)のキーだけ(history はプリセット名しか持たない)。
+// 旧 id と新 id が両方あるとき: levels は新 id を採り、stats は回数を足す(t・sp は新しい方)
+function migrateIds(d){
+  if(!isPlain(d))return d;
+  const out=Object.assign({},d);
+  if(isPlain(d.prefs)&&isPlain(d.prefs.levels)){
+    const lv={},src=d.prefs.levels;
+    for(const[k,v]of Object.entries(src))if(!RENAMED[k])lv[k]=v;
+    for(const[k,v]of Object.entries(src))if(RENAMED[k]&&!(RENAMED[k]in lv))lv[RENAMED[k]]=v;
+    out.prefs=Object.assign({},d.prefs,{levels:lv});
+  }
+  if(isPlain(d.stats)){
+    const st={};
+    for(const[k,v]of Object.entries(d.stats)){
+      const id=RENAMED[k]||k,cur=st[id];
+      if(!isPlain(v)||!cur||!isPlain(cur)){if(!cur)st[id]=isPlain(v)?Object.assign({},v):v;continue;}
+      const m=Object.assign({},cur);
+      for(const c of ['n','nw','r','w'])if(Number.isFinite(v[c]))m[c]=(Number.isFinite(m[c])?m[c]:0)+v[c];
+      if(Number.isFinite(v.t)&&!(m.t>=v.t)){m.t=v.t;if(v.sp!==undefined)m.sp=v.sp;}
+      st[id]=m;
+    }
+    out.stats=st;
+  }
+  return out;
+}
+// get(key) は保存の文字列(無ければ null)を返す関数。gradus-v3 があればそれを、無ければ gradus-v2 を読んで id を直す。
+// 返す from が gradus-v3 でなければ、呼ぶ側が gradus-v3 に書く(gradus-v2 には書かない)。読めないキーは無いものとして扱う
+function readStore(get){
+  const parse=k=>{try{const s=get(k);return s?JSON.parse(s):null;}catch(e){return null;}};
+  for(const k of [STORE_KEY,OLD_STORE_KEY]){const d=parse(k);if(isPlain(d))return {data:migrateIds(d),from:k};}
+  return {data:null,from:null};
+}
+
 function solveFor(sp,cf,above,rhythm,ties,ms){
   const S=buildSlots(sp,cf.length,rhythm||[],ties||[]);
   return solve(sp,cf,above,S,rhythm||[],ties||[],ms);
@@ -528,7 +569,8 @@ function solveFor(sp,cf,above,rhythm,ties,ms){
 const GE={LEFT,LETTERS,PC,QN,N,midi,nameOf,noteStr,cpy,interval,ivName,vInfo,motion,
   FUX,MODES,FINAL_MODE,FUX_NOTES,modeOf,SPECIES,PATTERNS,PAT_FIRST,PAT_MID,hasEighth,defaultRhythm,RULES,INJECT,
   buildSlots,skey,valsOf,editable,analyze,RULE_LV,PRESETS,POINTS,grade,STRICT,solve,solveOnce,solveFor,
-  pickOne,melBad,cfIssues,genCF,cfSolvable,parseCF,genCFChecked,makeQuestion};
+  pickOne,melBad,cfIssues,genCF,cfSolvable,parseCF,genCFChecked,makeQuestion,
+  STORE_KEY,OLD_STORE_KEY,RENAMED,migrateIds,readStore};
 root.GE=GE;
 if(typeof module!=='undefined'&&module.exports)module.exports=GE;
 })(typeof self!=='undefined'?self:globalThis);

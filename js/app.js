@@ -5,7 +5,7 @@
 'use strict';
 const G=window.GE;
 const {LETTERS,N,midi,nameOf,noteStr,cpy,ivName,FUX,MODES,FUX_NOTES,modeOf,SPECIES,PATTERNS,PAT_FIRST,PAT_MID,hasEighth,
-  defaultRhythm,RULES,RULE_LV,PRESETS,INJECT,buildSlots,skey,valsOf,editable,analyze,cfIssues,parseCF}=G;
+  defaultRhythm,RULES,RULE_LV,PRESETS,INJECT,buildSlots,skey,valsOf,editable,analyze,cfIssues,parseCF,migrateIds,readStore}=G;
 const LEFT=G.LEFT;
 const SAMPLE={'1-dorian-above':'A4 A4 B4 A4 B4 D5 C5 D5 D5 C5 D5'};
 const $=s=>document.querySelector(s);
@@ -51,7 +51,8 @@ function task(type,args,chan){
 }
 
 /* ================= storage ================= */
-const STORE='gradus-v2';
+// gradus-v3 だけに書く。gradus-v2(段階3a より前)は読むだけで、書き換えも消しもしない(G.readStore)
+const STORE=G.STORE_KEY;
 let store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{}};
 // Stored and imported data are checked entry by entry: one broken entry (e.g. from a hand-edited export) must not stop the app.
 const isObj=o=>!!o&&typeof o==='object'&&!Array.isArray(o);
@@ -73,8 +74,8 @@ function normStore(){
 }
 function loadStore(){
   try{
-    const s=JSON.parse(localStorage.getItem(STORE)||'null');
-    if(s){store=Object.assign(store,s);normStore();return;}
+    const {data,from}=readStore(k=>localStorage.getItem(k));
+    if(data){store=Object.assign(store,data);normStore();if(from!==STORE)persistNow();return;}
     const old=JSON.parse(localStorage.getItem('gradus-drafts-v1')||'null');
     if(old&&old.drafts){
       for(const k in old.drafts){
@@ -1074,7 +1075,7 @@ function drawCfTools(){
 }
 
 /* ================= export / import ================= */
-function exportJSON(){return JSON.stringify({app:'gradus',format:2,exported:new Date().toISOString(),data:store},null,1);}
+function exportJSON(){return JSON.stringify({app:'gradus',format:3,exported:new Date().toISOString(),data:store},null,1);}
 function exportFile(){
   const txt=exportJSON(),d=new Date(),name=`gradus-記録-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
   try{const url=URL.createObjectURL(new Blob([txt],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);}catch(e){}
@@ -1084,7 +1085,8 @@ function importFrom(text){
   let o;try{o=JSON.parse(text);}catch(e){ioMsg='読み込めませんでした。書き出したときのテキストをそのまま貼り付けてください。';render();return;}
   const d=o&&o.app==='gradus'&&o.data?o.data:null;
   if(!d||typeof d!=='object'||!Array.isArray(d.history||[])){ioMsg='Gradus の記録として読み取れませんでした。';render();return;}
-  store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...d};normStore();persistNow();
+  // 書き出した記録には規則 id(prefs.levels・stats)が入る。format 2 以前の記録は旧 id なので直す
+  store={drafts:{},prefs:{},history:[],stats:{},cfs:[],cfSeq:0,drillStats:{},...migrateIds(d)};normStore();persistNow();
   ioMode=null;ioText='';ioMsg='';pendingDel=null;
   applyPrefs(store.prefs);
   refreshCfSelect();loadDraft();toast(`記録を読み込みました(保存した解答 ${store.history.length}件)。`);
