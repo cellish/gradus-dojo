@@ -19,7 +19,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (C) {
   'use strict';
 
-  const version = '0.1.0';
+  const version = '0.4.0';
   const MODES = ['major', 'minor'];
   const FORMS = ['natural', 'harmonic', 'melodic'];
 
@@ -42,9 +42,11 @@
     return key;
   }
 
-  // "C major"・"F# minor"(style は pitch.js の formatPitchClass と同じ)
+  // "C major"・"F# minor"(style は pitch.js の formatPitchClass と同じ)。
+  // style 'ja' は「変ロ長調」・「嬰ヘ短調」
   function formatKey(key, opts) {
     checkKey(key);
+    if (opts && opts.style === 'ja') return C.formatPitchClass(key.tonic, opts) + (key.mode === 'minor' ? '短調' : '長調');
     return `${C.formatPitchClass(key.tonic, opts)} ${key.mode}`;
   }
 

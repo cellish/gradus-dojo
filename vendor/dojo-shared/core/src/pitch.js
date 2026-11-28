@@ -14,7 +14,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const version = '0.1.0';
+  const version = '0.4.0';
 
   const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
   const PC = [0, 2, 4, 5, 7, 9, 11];          // 幹音の半音位置
@@ -64,15 +64,20 @@
     ['Heses', 'B', 'H', 'His', 'Hisis'],
   ];
 
+  // 日本式(ハ・ニ・ホ・ヘ・ト・イ・ロ)。変化記号は前に付ける: 嬰ヘ・変ロ・重嬰ハ・重変ロ
+  const JA_LETTERS = ['ハ', 'ニ', 'ホ', 'ヘ', 'ト', 'イ', 'ロ'];
+  const JA_ACC = { '-2': '重変', '-1': '変', '0': '', '1': '嬰', '2': '重嬰' };
+
   function nameOfClass(letter, alter, style) {
     if (!okAlter(alter)) throw new RangeError(`alter が範囲外: ${alter}`);
     if (style === 'german') return GERMAN[letter][alter + 2];
+    if (style === 'ja') return JA_ACC[alter] + JA_LETTERS[letter];
     if (style === 'unicode') return LETTERS[letter] + ACC_UNICODE[alter];
     if (style === undefined || style === 'ascii') return LETTERS[letter] + ACC_ASCII[alter];
     throw new RangeError(`style が不明: ${style}`);
   }
 
-  // style: 'ascii'(既定。"F#4")/ 'unicode'("F♯4")/ 'german'("Fis4")
+  // style: 'ascii'(既定。"F#4")/ 'unicode'("F♯4")/ 'german'("Fis4")/ 'ja'("嬰ヘ4"。オクターヴは数字のまま)
   function formatPitch(p, opts) {
     const style = opts && opts.style;
     return nameOfClass(letterOf(p), p.alter, style) + octaveOf(p);

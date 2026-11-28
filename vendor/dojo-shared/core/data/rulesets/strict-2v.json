@@ -1,0 +1,453 @@
+{
+ "id": "strict-2v",
+ "style": "strict",
+ "texture": 2,
+ "name": {
+  "ja": "フックス厳格",
+  "en": ""
+ },
+ "about": "GR(gradus-dojo)の判定の基準「フックス厳格」(PRESETS.fux = RULE_LV の既定)。規則の並びと名前は GR の RULES。app: true はまだ GR の analyze が判定する規則。声部は2つ(定旋律 given・対旋律 answer、上から順)",
+ "extends": null,
+ "params": {},
+ "rules": [
+  {
+   "rule": "crossing",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "声部の交差",
+    "en": ""
+   },
+   "params": {
+    "pairs": "adjacent",
+    "compare": "step"
+   },
+   "text": {
+    "ja": {
+     "msg": "声部の交差",
+     "why": {
+      "upper": "対旋律が定旋律の下に回り込んでいます。2声部は交差させません。",
+      "lower": "対旋律が定旋律の上に回り込んでいます。2声部は交差させません。"
+     }
+    },
+    "en": {
+     "msg": "",
+     "why": ""
+    }
+   }
+  },
+  {
+   "rule": "dissonance",
+   "level": "error",
+   "points": 2,
+   "name": {
+    "ja": "強拍の不協和",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "weakdis",
+   "level": "error",
+   "points": 2,
+   "name": {
+    "ja": "弱拍の不協和の扱い",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "susp",
+   "level": "error",
+   "points": 2,
+   "name": {
+    "ja": "掛留の解決",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "prep",
+   "level": "error",
+   "points": 2,
+   "name": {
+    "ja": "掛留の準備",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "first",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "開始の音程",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "last",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "終止の音程",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "unison",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "途中の同度",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "spacing",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "声部間の間隔",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "parallel",
+   "level": "error",
+   "points": 3,
+   "name": {
+    "ja": "平行5度・8度",
+    "en": ""
+   },
+   "params": {
+    "pairs": "all",
+    "skipCrossed": true
+   },
+   "text": {
+    "ja": {
+     "msg": {
+      "fifth": "平行5度",
+      "octave": "平行8度",
+      "unison": "平行同度"
+     },
+     "why": "完全協和音程を同じ方向に続けると、2声部がひとつの声のように聞こえます。反行か斜行で入り直します。"
+    },
+    "en": {
+     "msg": "",
+     "why": ""
+    }
+   }
+  },
+  {
+   "rule": "contrary",
+   "level": "error",
+   "points": 3,
+   "name": {
+    "ja": "反行による連続5度・8度",
+    "en": ""
+   },
+   "legacyId": "antiparallel",
+   "params": {
+    "pairs": "all",
+    "skipCrossed": true
+   },
+   "text": {
+    "ja": {
+     "msg": {
+      "fifth": "反行による連続5度",
+      "octave": "反行による連続8度",
+      "unison": "反行による連続同度"
+     },
+     "why": "反行でも完全協和音程が続くと、平行とほぼ同じ響きになります(「反行の5度・8度」)。平行と同じく使いません。"
+    },
+    "en": {
+     "msg": "",
+     "why": ""
+    }
+   }
+  },
+  {
+   "rule": "hidden",
+   "level": "error",
+   "points": 2,
+   "name": {
+    "ja": "隠伏5度・8度",
+    "en": ""
+   },
+   "params": {
+    "pairs": "all",
+    "skipCrossed": true,
+    "prev": "notSameKind",
+    "minUpperMove": 0,
+    "refs": "both"
+   },
+   "text": {
+    "ja": {
+     "msg": {
+      "fifth": "隠伏5度",
+      "octave": "隠伏8度",
+      "unison": "隠伏同度"
+     },
+     "why": "並行(同方向)の動きで完全協和音程に入っています。2声の厳格対位法では、完全協和音程には反行か斜行で入ります。"
+    },
+    "en": {
+     "msg": "",
+     "why": ""
+    }
+   }
+  },
+  {
+   "rule": "beatpar",
+   "level": "error",
+   "points": 2,
+   "name": {
+    "ja": "拍頭間の平行",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "run",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "3度・6度の連続",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "chromatic",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "半音階的進行",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "repeat",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "同音反復",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "leap",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "7度・オクターヴを超える跳躍",
+    "en": ""
+   },
+   "legacyId": "leapBig",
+   "params": {
+    "roles": [
+     "answer"
+    ],
+    "measure": "steps"
+   },
+   "text": {
+    "ja": {
+     "msg": {
+      "over": "オクターヴを超える跳躍",
+      "seventh": "7度の跳躍"
+     },
+     "why": {
+      "over": "跳躍はオクターヴまでにします。",
+      "seventh": "7度の跳躍は歌いにくく、禁じられています。"
+     }
+    },
+    "en": {
+     "msg": "",
+     "why": ""
+    }
+   }
+  },
+  {
+   "rule": "leapAug",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "増・減音程の跳躍",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "sixth",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "6度の跳躍",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "comp",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "跳躍後の埋め合わせ",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "twoLeaps",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "同方向の連続跳躍",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "ambitus",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "対旋律の音域",
+    "en": ""
+   },
+   "legacyId": "range",
+   "params": {
+    "roles": [
+     "answer"
+    ],
+    "maxSteps": 9
+   },
+   "text": {
+    "ja": {
+     "msg": "音域が広すぎる",
+     "why": "対旋律の音域が{degrees}度あります。10度以内が目安です。"
+    },
+    "en": {
+     "msg": "",
+     "why": ""
+    }
+   }
+  },
+  {
+   "rule": "climax",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "最高音の重複",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "ficta",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "変化音の使用",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "cadStep",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "終止の順次進行",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "leading",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "終止前の導音",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "cadForm",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "終止の形",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "syncBreak",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "シンコペーションの中断",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "rhythm",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "リズムの変化",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "eighthStep",
+   "level": "error",
+   "points": 2,
+   "name": {
+    "ja": "8分音符の順次進行",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "eighthPlace",
+   "level": "error",
+   "points": 1,
+   "name": {
+    "ja": "8分音符の位置",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "eighthUp",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "8分音符の上行",
+    "en": ""
+   },
+   "app": true
+  },
+  {
+   "rule": "eighthMany",
+   "level": "warn",
+   "points": 1,
+   "name": {
+    "ja": "8分音符が多すぎる",
+    "en": ""
+   },
+   "app": true
+  }
+ ]
+}
