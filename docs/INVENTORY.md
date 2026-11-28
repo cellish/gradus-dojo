@@ -48,6 +48,7 @@
 - **異名同音を区別する**(C♯4 = `{s:28,a:1}`、D♭4 = `{s:29,a:-1}`)。重嬰・重変(±2)は扱わない(`N()` の正規表現が `#`/`b` 1つだけ)。
 - 関数: `N('F#4')`(文字→音)、`midi(n)`、`nameOf(n)`(表示用「F♯4」)、`noteStr(n)`(保存用「F#4」)、`cpy(n)`。
 - (2026-11-28 追記)`N`・`midi`・`interval`・`motion` は、書法コア core 0.1.0(`vendor/dojo-shared/core/src/pitch.js`)の `parsePitch`・`toMidi`・`interval`・`motion` を呼ぶ薄い包みになった。`{s,a}` ⇔ `{step,alter}` を読み替えるだけで、入出力と結果は前と同じ。コアは重変化(±2)も扱えるが、`N` は今までどおり `#`/`b` 1つだけを読む。
+- (2026-11-28 追記)`analyze` の声部対の規則(`crossing`・`parallel`・`antiparallel`・`hidden`・`leapBig`・`range`)は、書法コア core 0.4.1 の `judge`(ruleset `strict-2v`)が判定する。コアの id は `contrary`・`leap`・`ambitus`、アプリには旧 id で戻す。下の記述(行番号など)は置き換え前のもの。
 - 保存・データ中は文字列(`'D4 F4 E4 …'`)、計算中は `{s,a}`。
 - MIDI からの変換は app.js の `midiToNote`(黒鍵を C♯・E♭・F♯・G♯・B♭ に固定で綴る)。
 - 周波数は app.js の `freq(n) = 440·2^((midi−69)/12)`(平均律)。

@@ -21,11 +21,12 @@
 ## 確かめ方(コミットの前に必ず)
 
 ```
-node test/engine.test.js        # 計算部のテスト(約20秒)
+node test/engine.test.js        # 計算部のテスト(約35秒。判定の記録 test/baseline/ との照合を含む)
 python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)配信し、ブラウザで確かめる
 ```
 
 - テストが通らないコミットは作らない。
+- `test/baseline/record.json` は、乱数の種と時計を固定した判定・解答探索・出題・ドリルの記録。判定を意図して変えたときだけ `node test/baseline/generate.js` で作り直す(作り直したことをコミットに書く)。
 - `js/engine.js` を変えたら、テストを足す(規則を足したら「違反する例」と「違反しない例」の両方)。
 - 見た目を変えたら、幅 1280px と 390px、ライト/ダークでスクリーンショットを撮って自分の目で確かめる(Playwright が使えれば `python3 tools/shot.py`、なければ手で)。
 - Playwright が使えない環境では、その旨を実装メモに書く。
@@ -33,7 +34,7 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 ## ファイル構成
 
 スクリプトは `<script src>` で順に読み込む普通のスクリプトで、モジュール(import/export)ではない。
-`index.html` の読み込み順が依存関係: `vendor/vexflow-bravura.js` → `vendor/dojo-shared/core/src/pitch.js` → `js/engine.js` → `js/drills.js` → `js/lessons.js` → `js/score.js` → `js/app.js`。
+`index.html` の読み込み順が依存関係: `vendor/vexflow-bravura.js` → 書法コア(`vendor/dojo-shared/core/` の `src/pitch.js` → `src/rules.js` → `src/rules/motion.js` → `src/rules/melodic.js` → `data/rulesets/strict-2v.js`) → `js/engine.js` → `js/drills.js` → `js/lessons.js` → `js/score.js` → `js/app.js`。
 
 | ファイル | 中身 |
 |---|---|
@@ -45,7 +46,7 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 | `js/app.js` | 画面・操作・保存(localStorage)・音(Web Audio)・MIDI。`state`、`render`、各パネルの描画、イベント。 |
 | `css/app.css` | 見た目。色はすべて `:root` のトークン(ライト)と `prefers-color-scheme: dark` / `[data-theme]` の上書き。 |
 | `vendor/` | VexFlow 5.0.0(リハモ道場と同じファイル。編集しない)とライセンス文。 |
-| `vendor/dojo-shared/core/` | 道場シリーズの書法コアのコピー(下の「書法コア」)。**編集しない。** 今読み込むのは `src/pitch.js` だけ。 |
+| `vendor/dojo-shared/core/` | 道場シリーズの書法コアのコピー(下の「書法コア」)。**編集しない。** 読み込むのは `src/pitch.js`・`src/rules.js`・`src/rules/*.js`・`data/rulesets/strict-2v.js`。 |
 | `THIRD_PARTY_NOTICES.md` | 同梱・利用している他者の著作物。ライブラリやフォントを足したらここにも書く。 |
 | `test/engine.test.js` | 計算部のテスト。`node test/engine.test.js`。 |
 | `docs/legacy/gradus-v5.html` | 分割前の1ファイル版(v5)。参照用。編集しない。 |
@@ -71,7 +72,7 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 判定 `analyze(ctx)` の `ctx` は `{sp, cf, above, slots, vals, rhythm, ties, levels?}`。`levels`(`{規則id: 'err'|'warn'|'off'}`)は判定の基準で、指摘の段階を置き換えるだけで線引きは変えない。解答探索・復習・ドリル・「学ぶ」には渡さない(常にフックス厳格)。
 
 **4. 判定結果の形。**
-`issues[]` の各要素は `{id, lv:'err'|'warn', cols:[slot index…], t:見出し, x:説明}`。`id` は `RULES` のキーで、復習の集計と出題(`INJECT`)がこれに依存する。**新しい規則は `RULES` に名前を足し、`INJECT` に出題できる類を書く。**
+`issues[]` の各要素は `{id, lv:'err'|'warn', cols:[slot index…], t:見出し, x:説明}`。声部対の規則(交差・平行・反行・隠伏・大きな跳躍・音域)は書法コアの `judge`(ruleset `strict-2v`)が判定し、`analyze` が今までの id(`antiparallel`・`leapBig`・`range`)とこの形に戻して、今までと同じ位置に並べる(下の「書法コア」)。`id` は `RULES` のキーで、復習の集計と出題(`INJECT`)がこれに依存する。**新しい規則は `RULES` に名前を足し、`INJECT` に出題できる類を書く。**
 `err` は規則違反、`warn` は注意(様式上の推奨)。採点は `grade(r, ctx)`(授業用の罰点表: 規則ごとに3・2・1点、`POINTS`。3度・6度の連続は累進、完全協和の使いすぎは全体減点)。合格 = 書き終えていて `err` が0。
 
 **5. 保存。**
@@ -95,9 +96,11 @@ VexFlow が使えないときは手描き表示(`drawStaffLegacy`)に切り替�
 
 ## 書法コア(dojo-shared)
 
-- 使っている版: **core 0.1.0**(`vendor/dojo-shared/core/VERSION`)。親フォルダの `dojo-shared/core/` からコピーしたもの。
+- 使っている版: **core 0.4.1**(`vendor/dojo-shared/core/VERSION`)。親フォルダの `dojo-shared/core/` からコピーしたもの。
+- 使っているもの: `pitch.js`(`N`・`midi`・`interval`・`motion` の中身)と、規則エンジン `rules.js`・`rules/*.js`・ruleset `data/rulesets/strict-2v.js`(声部対の規則6つ。`analyze` の `coreView` が判定の入力を作り、`fromCore` が結果を GR の形に戻す)。
+- コアの規則 id は統一後のもの(`contrary`・`leap`・`ambitus`)。画面・保存・プリセット・出題(`INJECT`)には今までの id(`antiparallel`・`leapBig`・`range`)を使う。id の変更と利用者の設定の移行は段階3a。
 - **コアのコピーは直接編集しない。直すときは `dojo-shared` で直して版を上げ、コピーし直す。** アプリの都合はコアの外(engine.js の包み)で吸収する。
-- 取り込み直す手順: `dojo-shared/core/` の `VERSION`・`CHANGELOG.md`・`src/` を `vendor/dojo-shared/core/` に上書きでコピー → 新しく読み込むファイルを `index.html`・`js/worker.js` の `importScripts`・`sw.js` の `SHELL` に足す → `sw.js` の `CACHE` を上げる → `node test/engine.test.js` と画面の確認。コピーとアプリの変更は、dojo-shared の変更とは別のコミット。
+- 取り込み直す手順: `dojo-shared/core/` の `VERSION`・`CHANGELOG.md`・`src/`(`src/rules/` を含む。`.gitkeep` などは要らない)・`data/rulesets/strict-2v.js` と `.json` を `vendor/dojo-shared/core/` に上書きでコピー → 新しく読み込むファイルを `index.html`・`js/worker.js` の `importScripts`・`sw.js` の `SHELL` に足す → `sw.js` の `CACHE` を上げる → `node test/engine.test.js` と画面の確認。コピーとアプリの変更は、dojo-shared の変更とは別のコミット。
 - コアの版で何が変わったかは `vendor/dojo-shared/core/CHANGELOG.md`。判定結果が変わる版(MINOR が上がる)では、変わった判定を作者が確認してから取り込む。
 
 ## 文言の決まり
