@@ -254,7 +254,7 @@ function ivLabel(v){
   if(state.ivMode==='quality')return v.q+(v.d+1);
   return String(v.d+1);
 }
-const LINE_RULES=new Set(['parallel','hidden','beatpar','antiparallel']);
+const LINE_RULES=new Set(['parallel','hidden','beatpar','contrary']);
 function drawStaffLegacy(r){
   const c=cf(),n=c.length,S=curS,V=curV,{MW,g}=SPECIES[state.sp],judge=showJudg();
   const W=LEFT+n*MW+28,Hh=NOTE_BOTTOM+80,svg=$('#staff');

@@ -175,7 +175,7 @@ t('grading: 3/2/1 points, escalation, global deduction, pass',()=>{
   // hidden fifth/octave is 2 points
   assert.equal(G.POINTS.hidden,2);
   // forbidden leap is 1 point
-  const leap=g.items.find(x=>x.id==='leapBig'||x.id==='leapAug');if(leap)assert.equal(leap.pts,1);
+  const leap=g.items.find(x=>x.id==='leap'||x.id==='leapAug');if(leap)assert.equal(leap.pts,1);
   // a correct Fux line passes
   const ok=c('A4 A4 G4 A4 B4 C5 C5 B4 D5 C#5 D5');g=G.grade(G.analyze(ok),ok);
   assert(g.pass);assert.equal(g.items.filter(x=>x.pts>=2).length,0);
@@ -192,8 +192,8 @@ t('contrary-motion fifths are an error worth 3 points',()=>{
   // cf D4 -> C4 (down), cp A4 (5th) -> G5 (12th = compound 5th, up): contrary motion between perfect fifths.
   const cf=notes('D4 C4'),S=G.buildSlots(1,2,[],[]),vals=G.valsOf(S,{'0:0':G.N('A4'),'1:0':G.N('G5')});
   const r=G.analyze({sp:1,cf,above:true,slots:S,vals,rhythm:[],ties:[]});
-  const x=r.issues.find(i=>i.id==='antiparallel');assert(x,ids(r).join(','));assert.equal(x.lv,'err');
-  assert.equal(G.grade(r,{cf}).items.find(i=>i.id==='antiparallel').pts,3);
+  const x=r.issues.find(i=>i.id==='contrary');assert(x,ids(r).join(','));assert.equal(x.lv,'err');
+  assert.equal(G.grade(r,{cf}).items.find(i=>i.id==='contrary').pts,3);
   assert(!G.grade(r,{cf}).pass);
 });
 t('opening rule applies only to the first bar, not to the first note written',()=>{

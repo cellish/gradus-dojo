@@ -21,10 +21,8 @@ const DC=(root.DojoCore&&root.DojoCore.judge)?root.DojoCore
     C.loadRuleset(require(CORE+'data/rulesets/strict-2v.js'));return C;})():null);
 if(!DC||!DC.judge)throw new Error('engine.js は vendor/dojo-shared/core の pitch.js・rules.js・rules/*.js・data/rulesets/strict-2v.js の後に読み込む');
 // 声部対の規則(交差・平行・反行・隠伏・大きな跳躍・音域)は、コアの judge が ruleset strict-2v で判定する。
-// コアの id は統一後のもの(contrary・leap・ambitus)。画面・保存・プリセット・出題には今までの id
-// (antiparallel・leapBig・range。ruleset の legacyId)で渡す。id を変えるのは段階3a。
+// 規則 id はコアと同じ(段階3a で contrary・leap・ambitus に改めた。旧 id は ruleset の legacyId)。
 const RULESET=DC.loadRuleset('strict-2v');
-const OLD_ID={};RULESET.rules.forEach(e=>{if(e.legacyId)OLD_ID[e.rule]=e.legacyId;});
 const core=n=>({step:n.s,alter:n.a});
 // analyze の ctx → コアの判定の入力(列 = スロット、声部は上から順)。対旋律の打鍵 = editable、定旋律の打鍵 = 小節の頭
 const CP_VOICE={id:'cp',role:'answer'},CF_VOICE={id:'cf',role:'given'};
@@ -35,7 +33,7 @@ function coreView(c){
       return above?{notes:[p,q],attack:[pa,qa]}:{notes:[q,p],attack:[qa,pa]};})};
 }
 // コアの Issue → GR の指摘 {id, lv, cols, t, x}
-const fromCore=x=>({id:OLD_ID[x.rule]||x.rule,lv:x.level==='error'?'err':'warn',cols:[...new Set(x.refs.map(r=>r.col))],t:x.msg,x:x.why});
+const fromCore=x=>({id:x.rule,lv:x.level==='error'?'err':'warn',cols:[...new Set(x.refs.map(r=>r.col))],t:x.msg,x:x.why});
 // The app's own notation only: one optional # or b and a single-digit octave (the core reads more, e.g. 'C##4').
 function N(name){
   if(typeof name!=='string'||!/^[A-G][#b]?\d$/.test(name))throw new TypeError(`音名として読めない: ${name}`);
@@ -98,23 +96,23 @@ function defaultRhythm(n){
 const RULES={
   crossing:'声部の交差', dissonance:'強拍の不協和', weakdis:'弱拍の不協和の扱い', susp:'掛留の解決', prep:'掛留の準備',
   first:'開始の音程', last:'終止の音程', unison:'途中の同度', spacing:'声部間の間隔', parallel:'平行5度・8度',
-  antiparallel:'反行による連続5度・8度', hidden:'隠伏5度・8度', beatpar:'拍頭間の平行', run:'3度・6度の連続',
-  chromatic:'半音階的進行', repeat:'同音反復', leapBig:'7度・オクターヴを超える跳躍', leapAug:'増・減音程の跳躍',
-  sixth:'6度の跳躍', comp:'跳躍後の埋め合わせ', twoLeaps:'同方向の連続跳躍', range:'対旋律の音域', climax:'最高音の重複',
+  contrary:'反行による連続5度・8度', hidden:'隠伏5度・8度', beatpar:'拍頭間の平行', run:'3度・6度の連続',
+  chromatic:'半音階的進行', repeat:'同音反復', leap:'7度・オクターヴを超える跳躍', leapAug:'増・減音程の跳躍',
+  sixth:'6度の跳躍', comp:'跳躍後の埋め合わせ', twoLeaps:'同方向の連続跳躍', ambitus:'対旋律の音域', climax:'最高音の重複',
   ficta:'変化音の使用', cadStep:'終止の順次進行', leading:'終止前の導音', cadForm:'終止の形', syncBreak:'シンコペーションの中断', rhythm:'リズムの変化',
   eighthStep:'8分音符の順次進行', eighthPlace:'8分音符の位置', eighthUp:'8分音符の上行', eighthMany:'8分音符が多すぎる'
 };
 // Level each rule is reported at by default (beatpar is err in species 2/3 and warn in species 4).
 const RULE_LV={};
 for(const id of Object.keys(RULES))RULE_LV[id]='err';
-for(const id of ['spacing','run','repeat','sixth','comp','twoLeaps','range','climax','ficta','syncBreak','rhythm','eighthUp','eighthMany'])RULE_LV[id]='warn';
+for(const id of ['spacing','run','repeat','sixth','comp','twoLeaps','ambitus','climax','ficta','syncBreak','rhythm','eighthUp','eighthMany'])RULE_LV[id]='warn';
 // Presets: overrides of RULE_LV. solve() never receives levels, so model answers always follow 'fux'.
 const PRESETS={
   fux:{name:'フックス厳格',levels:{}},
-  lenient:{name:'ゆるめ',levels:{hidden:'warn',antiparallel:'off',spacing:'off',run:'off',climax:'off',sixth:'off',twoLeaps:'off',comp:'warn',beatpar:'warn'}}
+  lenient:{name:'ゆるめ',levels:{hidden:'warn',contrary:'off',spacing:'off',run:'off',climax:'off',sixth:'off',twoLeaps:'off',comp:'warn',beatpar:'warn'}}
 };
 const INJECT={parallel:[1,2,3,5],hidden:[1,2,3,5],dissonance:[1,2,3,5],weakdis:[2,3,5],susp:[4],prep:[4],unison:[1,2],
-  leapBig:[1,2,3],leapAug:[1,2,3],leading:[1,2,3,4],repeat:[1,2],comp:[1,2],beatpar:[2],first:[1,2],sixth:[1,2],twoLeaps:[1,2,3],cadStep:[1,2],eighthStep:[5]};
+  leap:[1,2,3],leapAug:[1,2,3],leading:[1,2,3,4],repeat:[1,2],comp:[1,2],beatpar:[2],first:[1,2],sixth:[1,2],twoLeaps:[1,2,3],cadStep:[1,2],eighthStep:[5]};
 
 /* ================= slots ================= */
 function buildSlots(sp,n,rhythm,ties){
@@ -213,7 +211,7 @@ function analyze(c){
   for(let i=1;i<L;i++){const a=iv[i-1],b=iv[i];if(!a||!b)continue;
     const m=motion(cf[S[i-1].m],cf[S[i].m],V[i-1],V[i]);
     mo[i]=(m==='similar'&&a.dn===b.dn)?'parallel':m;
-    if(motionAt[i])put(motionAt[i]); // parallel, antiparallel or hidden
+    if(motionAt[i])put(motionAt[i]); // parallel, contrary or hidden
   }
   const beatPairs=[];
   if(sp===2||sp===3||sp===5)for(let m=1;m<n;m++)beatPairs.push([at[(m-1)+':0'],at[m+':0'],'拍頭間の平行','弱拍をはさんでも、連続する拍頭の完全協和音程が同じ方向へ動くと平行に聞こえます。',sp===2?'err':'warn']);
@@ -239,7 +237,7 @@ function analyze(c){
       continue;}
     if(ad>=2)leaps++;
     const mi=interval(d>0?p:q,d>0?q:p);
-    if(leapAt[i1])put(leapAt[i1]); // leapBig (a 7th or more than an octave) comes first, as before
+    if(leapAt[i1])put(leapAt[i1]); // leap (a 7th or more than an octave) comes first, as before
     else if(mi.q==='A'||mi.q==='d')add('leapAug','err',[i0,i1],`${ivName(mi)}の跳躍`,'増・減音程(特に三全音)の旋律的進行は禁じられています。');
     else if(ad===5){
       if(d<0)add('sixth','warn',[i0,i1],'下行6度の跳躍','6度の跳躍は上行の短6度に限るのが原則です。');
@@ -312,7 +310,7 @@ function analyze(c){
  * Based on classroom penalty rubrics (Nancy Rogers, FSU, Species Counterpoint Grading Guidelines):
  * 3 / 2 / 1 points by severity, escalating deductions for repeated weaknesses, and global deductions.
  */
-const POINTS={parallel:3,antiparallel:3,hidden:2,dissonance:2,weakdis:2,susp:2,prep:2,beatpar:2,eighthStep:2};
+const POINTS={parallel:3,contrary:3,hidden:2,dissonance:2,weakdis:2,susp:2,prep:2,beatpar:2,eighthStep:2};
 function grade(r,c){
   const items=r.issues.map(x=>{
     let pts=POINTS[x.id]||1;
@@ -330,7 +328,7 @@ function grade(r,c){
 }
 
 /* ================= solver ================= */
-const STRICT=new Set(['beatpar','comp','sixth','spacing','range','twoLeaps','repeat','climax','run','eighthUp','eighthMany']);
+const STRICT=new Set(['beatpar','comp','sixth','spacing','ambitus','twoLeaps','repeat','climax','run','eighthUp','eighthMany']);
 // The randomized depth-first search has a heavy tail: one unlucky early choice can keep it backtracking until the
 // time limit. So the strict pass restarts with fresh random orders and a growing time slice, keeping the answer
 // with the fewest findings. It returns as soon as one has none, or when several restarts in a row bring no
