@@ -135,12 +135,12 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .t-sel{fill:var(--accent-soft);stroke:var(--accent-line);stroke-width:1.2}
 .t-blank{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:5 4}
 .t-focus{fill:none;stroke:var(--dis);stroke-width:1.6;stroke-dasharray:4 3}
-.ivn{font-family:"IBM Plex Mono",monospace;font-size:13.5px;font-weight:500;font-variant-numeric:tabular-nums}
+.ivn{font-family:"IBM Plex Mono",monospace;font-size:calc(13.5px*var(--tz,1));font-weight:500;font-variant-numeric:tabular-nums}
 .iv-p{fill:var(--perfect)} .iv-i{fill:var(--imperfect)} .iv-x{fill:var(--dis)} .iv-none{fill:var(--faint)}
-.distag{font-size:10px;fill:var(--dis)}
-.mot{font-size:11px;fill:var(--faint)}
+.distag{font-size:calc(10px*var(--tz,1));fill:var(--dis)}
+.mot{font-size:calc(11px*var(--tz,1));fill:var(--faint)}
 .m-contrary{fill:var(--ink)}
-.rowlab{font-size:11px;fill:var(--faint);letter-spacing:.06em}
+.rowlab{font-size:calc(11px*var(--tz,1));fill:var(--faint);letter-spacing:.06em}
 
 /* panel */
 .panel{padding:18px;display:flex;flex-direction:column;gap:16px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
@@ -251,7 +251,7 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .ivmode select{min-height:28px;padding:2px 8px;font-size:12px}
 
 /* ---- 五線上の追加表示 ---- */
-.mnum{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:var(--faint)}
+.mnum{font-family:"IBM Plex Mono",monospace;font-size:calc(10px*var(--tz,1));fill:var(--faint)}
 .parline{stroke:var(--dis);stroke-width:1.6;stroke-dasharray:5 4;fill:none;opacity:.85}
 .parline.warn{stroke:var(--warn)}
 .climax{fill:var(--accent)}

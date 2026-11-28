@@ -324,14 +324,18 @@ function drawStaffLegacy(r){
   svg.innerHTML=s;
 }
 /* ---- VexFlow による楽譜(score.js)と、その座標に重ねる表示 ---- */
-const VF_MW={1:74,2:120,3:184,4:120,5:204};
+const VF_MW={1:64,2:96,3:120,4:96,5:130};  // 小節の音符の幅。10小節ほどが画面に収まるように詰めてある
 const VF_SC=1.2;  // VexFlow の譜表(線の間隔10)を画面で少し大きく
 // The zoom select multiplies this for the main staff only (100% = the size used so far); snippets keep VF_SC.
 // On narrow screens 160% makes the two staves taller than the phone screen, so cap at 130% there.
 // state.zoom keeps the user's choice, so a wide screen still shows 160% when that was chosen.
 const ZOOMS=[1,1.3,1.6],NARROW_MAX=1.3;
 const effZoom=()=>matchMedia('(max-width:920px)').matches?Math.min(state.zoom,NARROW_MAX):state.zoom;
-const mainSc=()=>VF_SC*effZoom();
+// 広い画面では、小節がスクロールなしで並ぶ大きさ(vfFit)を基準にし、「拡大」はそれに掛ける。狭い画面は従来どおり VF_SC。
+const VF_FIT_MIN=0.5;let vfFit=VF_SC;
+const mainSc=()=>vfFit*effZoom();
+function calcFit(W){const b=$('#staffScroll');if(!b||matchMedia('(max-width:920px)').matches)return VF_SC;
+  return Math.max(VF_FIT_MIN,Math.min(VF_SC,(b.clientWidth-2)/W));}
 function syncZoomSel(){const sel=$('#zoomSel');if(!sel)return;const cap=matchMedia('(max-width:920px)').matches;
   for(const o of sel.options){const big=+o.value>NARROW_MAX;o.hidden=cap&&big;o.disabled=cap&&big;}
   sel.value=String(effZoom());}
@@ -354,8 +358,11 @@ function headSVG(n,x,cls){const st=cpSt(),yy=yOn(st,n.s);
     (n.a?`<text class="acc ${cls}" x="${x-14}" y="${yy}" text-anchor="middle" dominant-baseline="central" font-size="15">${n.a>0?'♯':n.a<0?'♭':'♮'}</text>`:'');}
 function drawStaffVF(r){
   const c=cf(),n=c.length,S=curS,V=curV,judge=showJudg();
-  geo=GScore.engrave(vfModel(V));
-  const {W,H}=geo,svg=$('#staff'),X=geo.slotX,cs=cpSt(),fs=cfSt();
+  geo=GScore.engrave(vfModel(V));vfFit=calcFit(geo.W);
+  // 譜表を縮めても、小節番号・音程・進行の文字は読める大きさに保つ(縮んだぶん、文字と行間を大きくする)
+  const tz=Math.max(1,0.95/mainSc());
+  const W=geo.W,H=Math.ceil(geo.H+(tz-1)*40),svg=$('#staff'),X=geo.slotX,cs=cpSt(),fs=cfSt();
+  svg.style.setProperty('--tz',tz.toFixed(3));
   svg.setAttribute('width',Math.round(W*mainSc()));svg.setAttribute('height',Math.round(H*mainSc()));svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
   const lv=new Array(S.length).fill(null);
   if(judge)r.issues.forEach(is=>is.cols.forEach(i=>{if(is.lv==='err')lv[i]='err';else if(!lv[i])lv[i]='warn';}));
@@ -368,7 +375,7 @@ function drawStaffVF(r){
   if(!state.playing)s+=box(state.sel,'t-sel');
   if(state.focus.length){const a=Math.min(...state.focus),b=Math.max(...state.focus);
     s+=`<rect class="t-focus" x="${geo.slotL[a]}" y="${tt-3}" width="${geo.slotR[b]-geo.slotL[a]}" height="${tb-tt+6}" rx="8"/>`;}
-  for(let m=0;m<n;m++)s+=`<text class="mnum" x="${geo.measX[m]+3}" y="11">${m+1}</text>`;
+  for(let m=0;m<n;m++)s+=`<text class="mnum" x="${geo.measX[m]+3}" y="${(11*tz).toFixed(1)}">${m+1}</text>`;
   s+=`<g class="vfw">${geo.inner}</g>`;
   if(state.hints&&state.view==='practice'&&!state.playing){const x=X[state.sel];
     hintSet(state.sel).forEach(h=>{s+=`<circle class="hint" cx="${x}" cy="${yOn(cs,h.s)}" r="3"/>`;
@@ -384,7 +391,7 @@ function drawStaffVF(r){
   const filledIdx=S.map((sl,i)=>i).filter(i=>V[i]&&S[i].tiedFrom==null);
   if(filledIdx.length>=3){
     const hm=Math.max(...filledIdx.map(i=>midi(V[i]))),tops=filledIdx.filter(i=>midi(V[i])===hm);
-    const many=tops.length>((state.sp===3||state.sp===5)?2:1),ymin=Math.min(yOn(cs,V[tops[0]].s)-34,cs.topY-12);
+    const many=tops.length>((state.sp===3||state.sp===5)?2:1),ymin0=Math.min(yOn(cs,V[tops[0]].s)-34,cs.topY-12),ymin=geo.cpStaff==='lo'?Math.max(ymin0,geo.up.topY+4*10+22):ymin0;  // 下の段のとき、上の段の音(定旋律)に印が重ならないようにする
     tops.forEach(i=>{const x=X[i];s+=`<path class="climax${many?' warn':''}" d="M${x-4},${ymin-6} L${x+4},${ymin-6} L${x},${ymin}"><title>最高音</title></path>`;});
   }
   // 平行・隠伏の2音を結ぶ線
@@ -393,17 +400,17 @@ function drawStaffVF(r){
     s+=`<line class="parline${w}" x1="${X[i0]}" y1="${yOn(cs,V[i0].s)}" x2="${X[i1]}" y2="${yOn(cs,V[i1].s)}"/>`;
     s+=`<line class="parline${w}" x1="${geo.cfX[S[i0].m]}" y1="${yOn(fs,c[S[i0].m].s)}" x2="${geo.cfX[S[i1].m]}" y2="${yOn(fs,c[S[i1].m].s)}"/>`;});
   s+='<g id="ghost"></g>';
-  const ny=geo.rowY;
-  s+=`<text class="rowlab" x="6" y="${ny}" dominant-baseline="central">音程</text><text class="rowlab" x="6" y="${ny+28}" dominant-baseline="central">進行</text>`;
+  const ny=geo.rowY+(tz-1)*8;
+  s+=`<text class="rowlab" x="6" y="${ny}" dominant-baseline="central">音程</text><text class="rowlab" x="6" y="${ny+28*tz}" dominant-baseline="central">進行</text>`;
   for(let i=0;i<S.length;i++){const v=r.iv[i];if(S[i].rest)continue;
     if(!v){if(editable(S[i])&&!S[i].optRest)s+=`<text class="ivn iv-none" x="${X[i]}" y="${ny}" text-anchor="middle" dominant-baseline="central">·</text>`;continue;}
     const cl=(!v.cons||v.crossed)?'iv-x':v.perfect?'iv-p':'iv-i';
     s+=`<text class="ivn ${cl}" x="${X[i]}" y="${ny}" text-anchor="middle" dominant-baseline="central"><title>${ivName(v)}</title>${ivLabel(v)}</text>`;
-    if(r.dis[i]==='?')s+=`<text class="distag pend" x="${X[i]}" y="${ny+14}" text-anchor="middle" dominant-baseline="central"><title>前後の音が未入力のため判定を保留しています</title>保</text>`;
-    else if(r.dis[i])s+=`<text class="distag" x="${X[i]}" y="${ny+14}" text-anchor="middle" dominant-baseline="central">${r.dis[i]}</text>`;}
+    if(r.dis[i]==='?')s+=`<text class="distag pend" x="${X[i]}" y="${ny+14*tz}" text-anchor="middle" dominant-baseline="central"><title>前後の音が未入力のため判定を保留しています</title>保</text>`;
+    else if(r.dis[i])s+=`<text class="distag" x="${X[i]}" y="${ny+14*tz}" text-anchor="middle" dominant-baseline="central">${r.dis[i]}</text>`;}
   const ML={contrary:'反',oblique:'斜',similar:'並',parallel:'平',none:'―'};
   for(let i=1;i<S.length;i++){if(S[i].b!==0)continue;const m=r.mo[i];if(!m)continue;
-    s+=`<text class="mot m-${m}" x="${geo.slotL[i]}" y="${ny+28}" text-anchor="middle" dominant-baseline="central">${ML[m]}</text>`;}
+    s+=`<text class="mot m-${m}" x="${geo.slotL[i]}" y="${ny+28*tz}" text-anchor="middle" dominant-baseline="central">${ML[m]}</text>`;}
   svg.innerHTML=s;
 }
 function drawStaff(r){
@@ -1178,7 +1185,7 @@ $('#miniMap').addEventListener('click',e=>{const b=e.target.closest('[data-mm]')
   // Select the first editable note of that bar so the next render keeps the view there.
   const j=curS.findIndex(s=>s.m===m&&editable(s));if(j>=0&&state.view==='practice'){state.sel=j;render();}else syncMiniFrame();});
 $('#zoomSel').addEventListener('change',e=>{const z=+e.target.value;state.zoom=ZOOMS.includes(z)?z:1;savePrefs();render();});
-addEventListener('resize',()=>{drawMiniMap();followStaff();});
+addEventListener('resize',()=>{if(geo&&Math.abs(calcFit(geo.W)-vfFit)>0.01){render();return;}drawMiniMap();followStaff();});
 // The staff's width changes once the music fonts load, which can make it start (or stop) overflowing.
 if(window.ResizeObserver)new ResizeObserver(()=>{drawMiniMap();}).observe(svgEl);
 matchMedia('(max-width:920px)').addEventListener('change',()=>render());

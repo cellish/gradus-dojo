@@ -41,7 +41,7 @@ function engraveNow(md){
   const upHi=Math.max(...upSS)-CLEF[upClef].top, upLo=CLEF[upClef].bot-Math.min(...upSS), loHi=Math.max(...loSS)-CLEF[loClef].top, loLo=CLEF[loClef].bot-Math.min(...loSS);
   const SP=10,STEP=SP/2;
   const upTop=26+Math.max(0,upHi)*STEP+10;                       // 上の段の第5線
-  const gap=Math.max(70,40+Math.max(0,upLo)*STEP+Math.max(0,loHi)*STEP);
+  const gap=Math.max(56,36+Math.max(0,upLo)*STEP+Math.max(0,loHi)*STEP);  // 2段の間: 譜表の間隔5.6つ分(VexFlow の標準ではなくこのアプリの値。最高音の印を下の段の上に置く余白を含む)。加線の音が入るときは広げる
   const loTop=upTop+4*SP+gap;                                     // 下の段の第5線
   const bottom=loTop+4*SP+Math.max(0,loLo)*STEP+14;
   // 横幅: 音部記号の分を最初の小節に足す。どの小節も音符の入る幅は同じ(MW)
@@ -74,7 +74,7 @@ function engraveNow(md){
     const cfStave=cpUp?sl:su,cfClefNow=cpUp?loClef:upClef;
     const c=cf[m],cfn=new V.StaveNote({keys:[keyOf(c.s)],duration:'w',clef:cfClefNow});
     if(c.a)cfn.addModifier(new V.Accidental(ACC[c.a]),0);
-    cfn.setStyle({fillStyle:col.ink,strokeStyle:col.ink});
+    cfn.setStyle({fillStyle:col.ink,strokeStyle:col.ink});cfn.setLedgerLineStyle({strokeStyle:col.ink,lineWidth:1.5});  // 加線は既定が黒で、ダークテーマの背景に溶けるので色を指定する
     const cfVoice=new V.Voice({numBeats:4,beatValue:4}).setMode(V.Voice.Mode.SOFT);cfVoice.addTickables([cfn]);
     // 対旋律: この小節のスロット
     const cpStave=cpUp?su:sl,cpClefNow=cpUp?upClef:loClef;
@@ -92,7 +92,7 @@ function engraveNow(md){
         const k=v.s,prev=seen[k]==null?0:seen[k];
         if(s.tiedFrom==null&&v.a!==prev)t.addModifier(new V.Accidental(ACC[v.a]),0);
         seen[k]=v.a;
-        t.setStyle({fillStyle:col.cp,strokeStyle:col.cp});
+        t.setStyle({fillStyle:col.cp,strokeStyle:col.cp});t.setLedgerLineStyle({strokeStyle:col.cp,lineWidth:1.5});
         cpNotes[i]=t;
       }
       tk.push([i,t]);
