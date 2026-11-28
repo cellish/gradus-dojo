@@ -70,8 +70,8 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .tempo-val{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:5.5em}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
-@media (max-width:920px){.layout{grid-template-columns:minmax(0,1fr)}}
+/* パネル(得点・指摘など)は楽譜の下に置き、楽譜を横いっぱいに広げる */
+.layout{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
 .main{display:flex;flex-direction:column;gap:20px;min-width:0}
 .card{background:var(--surface);border:1px solid var(--hair);border-radius:12px;box-shadow:var(--shadow)}
 .staff-card{display:flex;flex-direction:column;min-width:0}
@@ -143,8 +143,7 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .rowlab{font-size:calc(11px*var(--tz,1));fill:var(--faint);letter-spacing:.06em}
 
 /* panel */
-.panel{padding:18px;display:flex;flex-direction:column;gap:16px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
-@media (max-width:920px){.panel{position:static}}
+.panel{padding:18px;display:flex;flex-direction:column;gap:16px}
 .scoreline{display:flex;align-items:center;gap:14px}
 .score{font-family:"Shippori Mincho",serif;font-weight:700;font-size:44px;line-height:1;font-variant-numeric:tabular-nums;min-width:2.2ch}
 .score-meta{display:flex;flex-direction:column;gap:2px}
@@ -157,6 +156,7 @@ input[type=range]{accent-color:var(--accent);width:110px}
 .panel h2{margin:0;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .panel h2 span{font-weight:400;color:var(--muted);font-size:12px}
 .issues{display:flex;flex-direction:column;gap:2px;margin:-4px -8px 0}
+@media (min-width:921px){.issues{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}}
 .issue{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;text-align:left;width:100%;padding:9px 8px;border-radius:8px;border:0;background:none;font:inherit;color:var(--ink);cursor:pointer}
 .issue:hover{background:var(--surface-2)}
 .sev{font-size:11px;padding:1px 8px;border-radius:999px;font-weight:700;align-self:start;margin-top:2px;white-space:nowrap}
@@ -289,8 +289,8 @@ input[type=range]{accent-color:var(--accent);width:110px}
 /* ---- スマホの指摘バー ---- */
 .mbar{position:fixed;left:0;right:0;bottom:0;z-index:30;border:0;border-top:1px solid var(--hair);background:var(--surface);color:var(--ink);font:inherit;font-size:13.5px;text-align:left;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;justify-content:space-between;gap:12px;cursor:pointer;box-shadow:0 -6px 18px rgba(10,12,18,.08)}
 .mbar .e{color:var(--dis);font-weight:700} .mbar .w{color:var(--warn);font-weight:700} .mbar .good{color:var(--imperfect);font-weight:700}
-@media (min-width:921px){.mbar{display:none!important}}
-@media (max-width:920px){.wrap{padding-bottom:24px}.credits{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:920px){.wrap{padding-bottom:24px}}
+.credits{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}  /* 下の固定バー(.mbar)に隠れないように */
 
 /* ---- 穴埋め ---- */
 .fillbox{border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}

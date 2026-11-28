@@ -26,8 +26,8 @@ def main():
         def log_message(self, *args):
             pass
     handler = functools.partial(Quiet, directory=ROOT)
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.TCPServer(('127.0.0.1', a.port), handler)
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', a.port), handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     errors = []
     try:
