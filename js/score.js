@@ -41,7 +41,7 @@ function engraveNow(md){
   const upHi=Math.max(...upSS)-CLEF[upClef].top, upLo=CLEF[upClef].bot-Math.min(...upSS), loHi=Math.max(...loSS)-CLEF[loClef].top, loLo=CLEF[loClef].bot-Math.min(...loSS);
   const SP=10,STEP=SP/2;
   const upTop=26+Math.max(0,upHi)*STEP+10;                       // 上の段の第5線
-  const gap=Math.max(44,26+Math.max(0,upLo)*STEP+Math.max(0,loHi)*STEP);  // 2段の間: 譜表の間隔4.4つ分(VexFlow の例は4つ分。このアプリの値。最高音の印を下の段の上に置く余白を含む)。加線の音が入るときは広げる
+  const gap=Math.max(38,20+Math.max(0,upLo)*STEP+Math.max(0,loHi)*STEP);  // 2段の間: 譜表の間隔3.8つ分(VexFlow の例は4つ分。このアプリの値。最高音の印を下の段の上に置く余白を含む)。加線の音が入るときは広げる
   const loTop=upTop+4*SP+gap;                                     // 下の段の第5線
   const bottom=loTop+4*SP+Math.max(0,loLo)*STEP+14;
   // 横幅: 音部記号の分を最初の小節に足す。どの小節も音符の入る幅は同じ(MW)

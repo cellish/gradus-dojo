@@ -324,7 +324,7 @@ function drawStaffLegacy(r){
   svg.innerHTML=s;
 }
 /* ---- VexFlow による楽譜(score.js)と、その座標に重ねる表示 ---- */
-const VF_MW={1:64,2:96,3:120,4:96,5:130};  // 小節の音符の幅。10小節ほどが画面に収まるように詰めてある
+const VF_MW={1:64,2:104,3:136,4:104,5:160};  // 小節の音符の幅。倍率は類によらず第1類を基準にそろえるので、音符の多い類は幅が足りなければ横にスクロールする
 const VF_SC=1.2;  // VexFlow の譜表(線の間隔10)を画面で少し大きく
 // The zoom select multiplies this for the main staff only (100% = the size used so far); snippets keep VF_SC.
 // On narrow screens 160% makes the two staves taller than the phone screen, so cap at 130% there.
@@ -336,6 +336,8 @@ const VF_FIT_MIN=0.5;let vfFit=VF_SC;
 const mainSc=()=>vfFit*effZoom();
 function fitIn(b,W){if(!b||matchMedia('(max-width:920px)').matches||!b.clientWidth)return VF_SC;
   return Math.max(VF_FIT_MIN,Math.min(VF_SC,(b.clientWidth-2)/W));}
+// 楽譜の大きさは、どの類でも「第1類が収まる大きさ」にそろえる(類ごとの幅 W を、第1類の幅に直して倍率を決める)。
+const std1W=(W,n,sp)=>W-n*((VF_MW[sp]||VF_MW[1])-VF_MW[1]);
 function calcFit(W){return fitIn($('#staffScroll'),W);}
 function syncZoomSel(){const sel=$('#zoomSel');if(!sel)return;const cap=matchMedia('(max-width:920px)').matches;
   for(const o of sel.options){const big=+o.value>NARROW_MAX;o.hidden=cap&&big;o.disabled=cap&&big;}
@@ -359,7 +361,7 @@ function headSVG(n,x,cls){const st=cpSt(),yy=yOn(st,n.s);
     (n.a?`<text class="acc ${cls}" x="${x-14}" y="${yy}" text-anchor="middle" dominant-baseline="central" font-size="15">${n.a>0?'♯':n.a<0?'♭':'♮'}</text>`:'');}
 function drawStaffVF(r){
   const c=cf(),n=c.length,S=curS,V=curV,judge=showJudg();
-  geo=GScore.engrave(vfModel(V));vfFit=calcFit(geo.W);
+  geo=GScore.engrave(vfModel(V));vfFit=calcFit(std1W(geo.W,geo.measX.length,state.sp));
   // 譜表を縮めても、小節番号・音程・進行の文字は読める大きさに保つ(縮んだぶん、文字と行間を大きくする)
   const tz=Math.max(1,0.95/mainSc());
   const W=geo.W,H=Math.ceil(geo.H+(tz-1)*40),svg=$('#staff'),X=geo.slotX,cs=cpSt(),fs=cfSt();
@@ -392,7 +394,7 @@ function drawStaffVF(r){
   const filledIdx=S.map((sl,i)=>i).filter(i=>V[i]&&S[i].tiedFrom==null);
   if(filledIdx.length>=3){
     const hm=Math.max(...filledIdx.map(i=>midi(V[i]))),tops=filledIdx.filter(i=>midi(V[i])===hm);
-    const many=tops.length>((state.sp===3||state.sp===5)?2:1),ymin0=Math.min(yOn(cs,V[tops[0]].s)-34,cs.topY-12),ymin=geo.cpStaff==='lo'?Math.max(ymin0,geo.up.topY+4*10+22):ymin0;  // 下の段のとき、上の段の音(定旋律)に印が重ならないようにする
+    const many=tops.length>((state.sp===3||state.sp===5)?2:1),ymin0=Math.min(yOn(cs,V[tops[0]].s)-34,cs.topY-12),ymin=geo.cpStaff==='lo'?Math.max(ymin0,geo.up.topY+4*10+18):ymin0;  // 下の段のとき、上の段の音(定旋律)に印が重ならないようにする
     tops.forEach(i=>{const x=X[i];s+=`<path class="climax${many?' warn':''}" d="M${x-4},${ymin-6} L${x+4},${ymin-6} L${x},${ymin}"><title>最高音</title></path>`;});
   }
   // 平行・隠伏の2音を結ぶ線
@@ -735,7 +737,7 @@ function drawSnippet(svg,sc,answered){
     vals,above:sc.above,MW:VF_MW[sc.sp]||120,col:vfCol()});
   // Snippets draw no interval rows, so trim the space VexFlow reserves below the lower staff.
   // 上の余白も詰める(枠は g.top-16 から始まる)。広い画面では、小節がスクロールなしで並ぶ大きさにする(練習タブと同じ)。
-  const y0=Math.max(0,Math.round(g.top-22)),HH=Math.min(g.H,Math.round(g.bottom+22))-y0,k=fitIn(svg.parentElement,g.W);
+  const y0=Math.max(0,Math.round(g.top-22)),HH=Math.min(g.H,Math.round(g.bottom+22))-y0,k=fitIn(svg.parentElement,std1W(g.W,g.measX.length,sc.sp));
   svg.setAttribute('width',Math.round(g.W*k));svg.setAttribute('height',Math.round(HH*k));svg.setAttribute('viewBox',`0 ${y0} ${g.W} ${HH}`);
   const tt=g.top-16,tb=g.bottom+16;let h='';
   sc.marks.forEach(i=>{h+=`<rect class="t-sel" x="${g.slotL[i]+2}" y="${tt}" width="${Math.max(6,g.slotR[i]-g.slotL[i]-4)}" height="${tb-tt}" rx="6"/>`;});
@@ -1187,7 +1189,7 @@ $('#miniMap').addEventListener('click',e=>{const b=e.target.closest('[data-mm]')
   // Select the first editable note of that bar so the next render keeps the view there.
   const j=curS.findIndex(s=>s.m===m&&editable(s));if(j>=0&&state.view==='practice'){state.sel=j;render();}else syncMiniFrame();});
 $('#zoomSel').addEventListener('change',e=>{const z=+e.target.value;state.zoom=ZOOMS.includes(z)?z:1;savePrefs();render();});
-addEventListener('resize',()=>{if(geo&&Math.abs(calcFit(geo.W)-vfFit)>0.01){render();return;}drawMiniMap();followStaff();});
+addEventListener('resize',()=>{if(geo&&Math.abs(calcFit(std1W(geo.W,geo.measX.length,state.sp))-vfFit)>0.01){render();return;}drawMiniMap();followStaff();});
 // The staff's width changes once the music fonts load, which can make it start (or stop) overflowing.
 if(window.ResizeObserver)new ResizeObserver(()=>{drawMiniMap();}).observe(svgEl);
 matchMedia('(max-width:920px)').addEventListener('change',()=>render());
