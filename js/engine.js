@@ -10,12 +10,32 @@ const LEFT=78; // 五線の左余白(スロットのx座標計算に使う)
 const LETTERS=['C','D','E','F','G','A','B'];
 const PC=[0,2,4,5,7,9,11];
 const QN={P:'完全',M:'長',m:'短',A:'増',d:'減'};
-// 音高・音程・進行の計算は書法コア(vendor/dojo-shared/core。編集しない。直すときは dojo-shared で)。
+// 音高・音程・進行の計算と、声部対の規則の判定は書法コア(vendor/dojo-shared/core。編集しない。直すときは dojo-shared で)。
 // ここの N・midi・interval・motion は、アプリの音の形 {s, a} とコアの {step, alter} をつなぐ薄い包み。
-const DC=(root.DojoCore&&root.DojoCore.interval)?root.DojoCore
-  :(typeof require!=='undefined'?require('../vendor/dojo-shared/core/src/pitch.js'):null);
-if(!DC)throw new Error('engine.js は vendor/dojo-shared/core/src/pitch.js の後に読み込む');
+// ブラウザ・Worker では index.html / worker.js がコアのファイルを先に読み込む(pitch.js・rules.js・rules/*.js・ruleset strict-2v.js)。
+const CORE='../vendor/dojo-shared/core/';
+const DC=(root.DojoCore&&root.DojoCore.judge)?root.DojoCore
+  :(typeof require!=='undefined'?(()=>{
+    const C=Object.assign({},require(CORE+'src/pitch.js'),require(CORE+'src/rules.js'));
+    require(CORE+'src/rules/motion.js');require(CORE+'src/rules/melodic.js');
+    C.loadRuleset(require(CORE+'data/rulesets/strict-2v.js'));return C;})():null);
+if(!DC||!DC.judge)throw new Error('engine.js は vendor/dojo-shared/core の pitch.js・rules.js・rules/*.js・data/rulesets/strict-2v.js の後に読み込む');
+// 声部対の規則(交差・平行・反行・隠伏・大きな跳躍・音域)は、コアの judge が ruleset strict-2v で判定する。
+// コアの id は統一後のもの(contrary・leap・ambitus)。画面・保存・プリセット・出題には今までの id
+// (antiparallel・leapBig・range。ruleset の legacyId)で渡す。id を変えるのは段階3a。
+const RULESET=DC.loadRuleset('strict-2v');
+const OLD_ID={};RULESET.rules.forEach(e=>{if(e.legacyId)OLD_ID[e.rule]=e.legacyId;});
 const core=n=>({step:n.s,alter:n.a});
+// analyze の ctx → コアの判定の入力(列 = スロット、声部は上から順)。対旋律の打鍵 = editable、定旋律の打鍵 = 小節の頭
+const CP_VOICE={id:'cp',role:'answer'},CF_VOICE={id:'cf',role:'given'};
+function coreView(c){
+  const {cf,above,slots:S,vals:V}=c;
+  return {voices:above?[CP_VOICE,CF_VOICE]:[CF_VOICE,CP_VOICE],
+    columns:S.map((s,i)=>{const p=V[i]?core(V[i]):null,q=core(cf[s.m]),pa=editable(s),qa=s.b===0;
+      return above?{notes:[p,q],attack:[pa,qa]}:{notes:[q,p],attack:[qa,pa]};})};
+}
+// コアの Issue → GR の指摘 {id, lv, cols, t, x}
+const fromCore=x=>({id:OLD_ID[x.rule]||x.rule,lv:x.level==='error'?'err':'warn',cols:[...new Set(x.refs.map(r=>r.col))],t:x.msg,x:x.why});
 // The app's own notation only: one optional # or b and a single-digit octave (the core reads more, e.g. 'C##4').
 function N(name){
   if(typeof name!=='string'||!/^[A-G][#b]?\d$/.test(name))throw new TypeError(`音名として読めない: ${name}`);
@@ -128,9 +148,16 @@ function analyze(c){
   const prv=i=>{for(let j=i-1;j>=0;j--)if(atk[j])return V[j]?j:(S[j].optRest?-1:-2);return -1;};
   const at={};S.forEach((s,i)=>{at[s.m+':'+s.b]=i;});
   let fi=-1;for(let i=0;i<L;i++)if(V[i]){fi=i;break;}
+  // Voice-pair findings come from the core. They are put back where this function used to add them,
+  // so the order of the list (and so what the screen and the solver see) stays the same.
+  const crossAt={},motionAt={},leapAt={};let ambitus=null,placed=0;
+  const found=DC.judge(coreView(c),RULESET);
+  for(const x of found){const g=fromCore(x),to=x.span.to;
+    if(x.rule==='crossing')crossAt[to]=g;else if(x.rule==='leap')leapAt[to]=g;else if(x.rule==='ambitus')ambitus=g;else motionAt[to]=g;}
+  const put=g=>{issues.push(g);placed++;};
 
   for(let i=0;i<L;i++){const v=iv[i];if(!v)continue;const s=S[i],strong=s.b===0;
-    if(v.crossed)add('crossing','err',[i],'声部の交差',`対旋律が定旋律の${above?'下':'上'}に回り込んでいます。2声部は交差させません。`);
+    if(crossAt[i])put(crossAt[i]);
     if(!v.cons){
       if(s.tiedFrom!=null){
         let nx=nxt(i);
@@ -186,13 +213,7 @@ function analyze(c){
   for(let i=1;i<L;i++){const a=iv[i-1],b=iv[i];if(!a||!b)continue;
     const m=motion(cf[S[i-1].m],cf[S[i].m],V[i-1],V[i]);
     mo[i]=(m==='similar'&&a.dn===b.dn)?'parallel':m;
-    if(b.perfect&&!b.crossed&&(m==='similar'||m==='contrary')){
-      const lab=b.dn===4?'5度':(b.d===0?'同度':'8度');
-      if(a.perfect&&a.dn===b.dn){
-        if(m==='similar')add('parallel','err',[i-1,i],`平行${lab}`,'完全協和音程を同じ方向に続けると、2声部がひとつの声のように聞こえます。反行か斜行で入り直します。');
-        else add('antiparallel','err',[i-1,i],`反行による連続${lab}`,'反行でも完全協和音程が続くと、平行とほぼ同じ響きになります(「反行の5度・8度」)。平行と同じく使いません。');
-      }else if(m==='similar')add('hidden','err',[i-1,i],`隠伏${lab}`,'並行(同方向)の動きで完全協和音程に入っています。2声の厳格対位法では、完全協和音程には反行か斜行で入ります。');
-    }
+    if(motionAt[i])put(motionAt[i]); // parallel, antiparallel or hidden
   }
   const beatPairs=[];
   if(sp===2||sp===3||sp===5)for(let m=1;m<n;m++)beatPairs.push([at[(m-1)+':0'],at[m+':0'],'拍頭間の平行','弱拍をはさんでも、連続する拍頭の完全協和音程が同じ方向へ動くと平行に聞こえます。',sp===2?'err':'warn']);
@@ -218,8 +239,7 @@ function analyze(c){
       continue;}
     if(ad>=2)leaps++;
     const mi=interval(d>0?p:q,d>0?q:p);
-    if(ad>7)add('leapBig','err',[i0,i1],'オクターヴを超える跳躍','跳躍はオクターヴまでにします。');
-    else if(ad===6)add('leapBig','err',[i0,i1],'7度の跳躍','7度の跳躍は歌いにくく、禁じられています。');
+    if(leapAt[i1])put(leapAt[i1]); // leapBig (a 7th or more than an octave) comes first, as before
     else if(mi.q==='A'||mi.q==='d')add('leapAug','err',[i0,i1],`${ivName(mi)}の跳躍`,'増・減音程(特に三全音)の旋律的進行は禁じられています。');
     else if(ad===5){
       if(d<0)add('sixth','warn',[i0,i1],'下行6度の跳躍','6度の跳躍は上行の短6度に限るのが原則です。');
@@ -236,7 +256,7 @@ function analyze(c){
   let span=0;
   if(filled.length>=2){
     const ss=filled.map(i=>V[i].s),mx=Math.max(...ss),mn=Math.min(...ss);span=mx-mn;
-    if(span>9)add('range','warn',filled.filter(i=>V[i].s===mx||V[i].s===mn),'音域が広すぎる',`対旋律の音域が${span+1}度あります。10度以内が目安です。`);
+    if(ambitus)put(ambitus);
     const hm=Math.max(...filled.map(i=>midi(V[i]))),tops=filled.filter(i=>midi(V[i])===hm);
     if(tops.length>1&&!missing&&sp!==3&&sp!==5)add('climax','warn',tops,'最高音が複数回',`最高音(${nameOf(V[tops[0]])})が${tops.length}回現れます。頂点を一度にすると旋律の形がはっきりします。`);
     if(tops.length>2&&!missing&&(sp===3||sp===5))add('climax','warn',tops,'最高音が何度も現れる',`最高音(${nameOf(V[tops[0]])})が${tops.length}回現れます。頂点ははっきり一度にまとめます。`);
@@ -277,6 +297,7 @@ function analyze(c){
     if(mid.length>2&&mid.every(x=>x===mid[0]))add('rhythm','warn',[at['1:0']],'リズムが単調','第5類では小節ごとにリズムを変え、2分音符・4分音符・タイを組み合わせます。');
     else if(!c.rhythm.slice(0,n-2).some(x=>PATTERNS[x]&&PATTERNS[x].tie))add('rhythm','warn',[at['1:0']],'掛留がない','第5類では、タイを使った掛留を少なくとも1回入れます。');}
 
+  if(placed!==found.length)throw new Error(`analyze: コアの指摘 ${found.length} 件のうち ${placed} 件しか並べられなかった`);
   issues.sort((a,b)=>(a.lv===b.lv?0:a.lv==='err'?-1:1)||a.cols[0]-b.cols[0]);
   let moves=0,contra=0,perf=0;
   for(let m=1;m<n;m++){const i1=at[m+':0'],i0=i1-1;if(i0<0||!V[i0]||!V[i1])continue;

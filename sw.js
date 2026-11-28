@@ -1,6 +1,6 @@
 // Gradus 対位法ドリル — service worker
 // アプリを更新したら CACHE の番号を上げてください。古いキャッシュは自動で削除されます。
-const CACHE = 'gradus-v14';
+const CACHE = 'gradus-v15';
 const FONT_CACHE = 'gradus-fonts';
 const SHELL = [
   './',
@@ -8,6 +8,10 @@ const SHELL = [
   './manifest.webmanifest',
   './css/app.css',
   './vendor/dojo-shared/core/src/pitch.js',
+  './vendor/dojo-shared/core/src/rules.js',
+  './vendor/dojo-shared/core/src/rules/motion.js',
+  './vendor/dojo-shared/core/src/rules/melodic.js',
+  './vendor/dojo-shared/core/data/rulesets/strict-2v.js',
   './js/engine.js',
   './js/drills.js',
   './js/lessons.js',

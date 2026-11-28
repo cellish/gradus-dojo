@@ -2,7 +2,7 @@
  * 重い計算(解答例の探索・定旋律の生成・復習問題の生成)を画面とは別のスレッドで行う。
  * メッセージ: {id, type, args} → {id, ok, result | error}
  */
-importScripts('../vendor/dojo-shared/core/src/pitch.js','engine.js','drills.js');
+importScripts('../vendor/dojo-shared/core/src/pitch.js','../vendor/dojo-shared/core/src/rules.js','../vendor/dojo-shared/core/src/rules/motion.js','../vendor/dojo-shared/core/src/rules/melodic.js','../vendor/dojo-shared/core/data/rulesets/strict-2v.js','engine.js','drills.js');
 const TASKS={
   solve:a=>GE.solveFor(a.sp,a.cf,a.above,a.rhythm,a.ties,a.ms||2500),
   genCF:a=>GE.genCFChecked(a.mode,a.len,a.sps,a.budget||9000),
