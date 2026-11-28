@@ -14,7 +14,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (C) {
   'use strict';
 
-  const version = '0.4.0';
+  const version = '0.4.1';
 
   /* 2音の完全協和の種類: 'fifth'(完全5度と複音程)| 'octave'(完全8度と複音程)| 'unison'(完全1度)| null。
    * 綴りで決める(増4度と減5度、減8度などを区別する)。声部が交差していても同じに数える */
@@ -38,19 +38,26 @@
     return v || null;
   }
 
-  function arrivals(view, params, ctx, visit) {
-    const pairs = ctx.pairs(params.pairs || 'all');
-    for (let c = 1; c < view.columns.length; c++) {
-      const A = view.columns[c - 1].notes, B = view.columns[c].notes;
-      for (const [i, j] of pairs) {
-        if (!A[i] || !A[j] || !B[i] || !B[j]) continue;
-        if (params.skipCrossed && B[i].step < B[j].step) continue;
-        const kb = kindAt(view, ctx, c, i, j);
-        if (!kb) continue;
-        visit({ c, i, j, A, B, kb, ka: kindAt(view, ctx, c - 1, i, j), m: C.motion(A[i], B[i], A[j], B[j]) });
+  /* 完全協和へ入る進行の一覧 [{ c, i, j, A, B, kb, ka, m }]。平行・反行・隠伏が同じ一覧を見るので、
+   * 1回の judge の中では pairs・skipCrossed ごとに1回だけ作る */
+  function arrivalList(view, params, ctx) {
+    const kind = params.pairs || 'all', skip = !!params.skipCrossed;
+    return ctx.memo('motion.arrivals:' + kind + ':' + skip, () => {
+      const pairs = ctx.pairs(kind), out = [];
+      for (let c = 1; c < view.columns.length; c++) {
+        const A = view.columns[c - 1].notes, B = view.columns[c].notes;
+        for (const [i, j] of pairs) {
+          if (!A[i] || !A[j] || !B[i] || !B[j]) continue;
+          if (skip && B[i].step < B[j].step) continue;
+          const kb = kindAt(view, ctx, c, i, j);
+          if (!kb) continue;
+          out.push({ c, i, j, A, B, kb, ka: kindAt(view, ctx, c - 1, i, j), m: C.motion(A[i], B[i], A[j], B[j]) });
+        }
       }
-    }
+      return out;
+    });
   }
+  function arrivals(view, params, ctx, visit) { for (const x of arrivalList(view, params, ctx)) visit(x); }
 
   const fourRefs = (view, c, i, j) => [
     { col: c - 1, voice: view.voices[i].id }, { col: c - 1, voice: view.voices[j].id },

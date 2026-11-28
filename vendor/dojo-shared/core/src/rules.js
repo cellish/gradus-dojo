@@ -29,7 +29,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (C, readRuleset) {
   'use strict';
 
-  const version = '0.4.0';
+  const version = '0.4.1';
   const LEVELS = ['error', 'warn'];
   const OVERRIDES = ['error', 'warn', 'off'];
   const ROLES = ['answer', 'given', 'reference'];
@@ -168,6 +168,7 @@
     return String(x);
   }
   function fill(tpl, vars, lang, opts) {
+    if (tpl.indexOf('{') < 0) return tpl;
     return tpl.replace(/\{(\w+)\}/g, (m, k) => {
       if (!vars || vars[k] === undefined) throw new Error(`文言の {${k}} に当てる値がない`);
       return fmtVar(vars[k], lang, opts);
