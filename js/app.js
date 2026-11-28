@@ -334,8 +334,9 @@ const effZoom=()=>matchMedia('(max-width:920px)').matches?Math.min(state.zoom,NA
 // 広い画面では、小節がスクロールなしで並ぶ大きさ(vfFit)を基準にし、「拡大」はそれに掛ける。狭い画面は従来どおり VF_SC。
 const VF_FIT_MIN=0.5;let vfFit=VF_SC;
 const mainSc=()=>vfFit*effZoom();
-function calcFit(W){const b=$('#staffScroll');if(!b||matchMedia('(max-width:920px)').matches)return VF_SC;
+function fitIn(b,W){if(!b||matchMedia('(max-width:920px)').matches||!b.clientWidth)return VF_SC;
   return Math.max(VF_FIT_MIN,Math.min(VF_SC,(b.clientWidth-2)/W));}
+function calcFit(W){return fitIn($('#staffScroll'),W);}
 function syncZoomSel(){const sel=$('#zoomSel');if(!sel)return;const cap=matchMedia('(max-width:920px)').matches;
   for(const o of sel.options){const big=+o.value>NARROW_MAX;o.hidden=cap&&big;o.disabled=cap&&big;}
   sel.value=String(effZoom());}
@@ -733,8 +734,9 @@ function drawSnippet(svg,sc,answered){
   const g=GScore.engrave({cf:sc.cf,slots:sc.slots.map(s=>({m:s.m,b:s.b,dur:s.dur,rest:!!s.rest,optRest:false,tiedFrom:s.tiedFrom,tieTo:s.tieTo})),
     vals,above:sc.above,MW:VF_MW[sc.sp]||120,col:vfCol()});
   // Snippets draw no interval rows, so trim the space VexFlow reserves below the lower staff.
-  const HH=Math.min(g.H,Math.round(g.bottom+30));
-  svg.setAttribute('width',Math.round(g.W*VF_SC));svg.setAttribute('height',Math.round(HH*VF_SC));svg.setAttribute('viewBox',`0 0 ${g.W} ${HH}`);
+  // 上の余白も詰める(枠は g.top-16 から始まる)。広い画面では、小節がスクロールなしで並ぶ大きさにする(練習タブと同じ)。
+  const y0=Math.max(0,Math.round(g.top-22)),HH=Math.min(g.H,Math.round(g.bottom+22))-y0,k=fitIn(svg.parentElement,g.W);
+  svg.setAttribute('width',Math.round(g.W*k));svg.setAttribute('height',Math.round(HH*k));svg.setAttribute('viewBox',`0 ${y0} ${g.W} ${HH}`);
   const tt=g.top-16,tb=g.bottom+16;let h='';
   sc.marks.forEach(i=>{h+=`<rect class="t-sel" x="${g.slotL[i]+2}" y="${tt}" width="${Math.max(6,g.slotR[i]-g.slotL[i]-4)}" height="${tb-tt}" rx="6"/>`;});
   h+=`<g class="vfw">${g.inner}</g>`;
