@@ -268,4 +268,13 @@ t('lessons: Fux examples, bad examples and guided tasks',()=>{
     assert(G.solveFor(sp,cf,g.above,sp===5?G.defaultRhythm(cf.length):[],[],3000),`guided sp${sp} unsolvable`);
   }
 });
+t('baseline: analyze, solver, questions and drills match the record (fixed random seed and clock)',()=>{
+  // Regenerate only when a rule is changed on purpose: node test/baseline/generate.js
+  const want=JSON.parse(require('fs').readFileSync(__dirname+'/baseline/record.json','utf8'));
+  const got=JSON.parse(JSON.stringify(require('./baseline/run.js').record()));
+  for(const k of Object.keys(want)){
+    assert.equal(got[k].length,want[k].length,k);
+    got[k].forEach((x,i)=>assert.deepEqual(x,want[k][i],`${k}[${i}]`));
+  }
+});
 console.log(`${pass} tests passed`);
