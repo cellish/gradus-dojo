@@ -72,11 +72,11 @@ python3 -m http.server 8000   # 別ターミナルで(リポジトリ直下で)�
 判定 `analyze(ctx)` の `ctx` は `{sp, cf, above, slots, vals, rhythm, ties, levels?}`。`levels`(`{規則id: 'err'|'warn'|'off'}`)は判定の基準で、指摘の段階を置き換えるだけで線引きは変えない。解答探索・復習・ドリル・「学ぶ」には渡さない(常にフックス厳格)。
 
 **4. 判定結果の形。**
-`issues[]` の各要素は `{id, lv:'err'|'warn', cols:[slot index…], t:見出し, x:説明}`。声部対の規則(交差・平行・反行・隠伏・大きな跳躍・音域)は書法コアの `judge`(ruleset `strict-2v`)が判定し、`analyze` が今までの id(`antiparallel`・`leapBig`・`range`)とこの形に戻して、今までと同じ位置に並べる(下の「書法コア」)。`id` は `RULES` のキーで、復習の集計と出題(`INJECT`)がこれに依存する。**新しい規則は `RULES` に名前を足し、`INJECT` に出題できる類を書く。**
+`issues[]` の各要素は `{id, lv:'err'|'warn', cols:[slot index…], t:見出し, x:説明}`。声部対の規則(交差・平行・反行・隠伏・大きな跳躍・音域)は書法コアの `judge`(ruleset `strict-2v`)が判定し、`analyze` がこの形に戻して、今までと同じ位置に並べる(下の「書法コア」)。規則 id はコアと同じ(段階3a で `antiparallel`→`contrary`、`leapBig`→`leap`、`range`→`ambitus` に改めた)。`id` は `RULES` のキーで、復習の集計と出題(`INJECT`)がこれに依存する。**新しい規則は `RULES` に名前を足し、`INJECT` に出題できる類を書く。**
 `err` は規則違反、`warn` は注意(様式上の推奨)。採点は `grade(r, ctx)`(授業用の罰点表: 規則ごとに3・2・1点、`POINTS`。3度・6度の連続は累進、完全協和の使いすぎは全体減点)。合格 = 書き終えていて `err` が0。
 
 **5. 保存。**
-localStorage キー `gradus-v2`、構造 `{drafts, prefs, history, stats, cfs, cfSeq, drillStats}`(`prefs` に判定の基準 `levels`・拡大率 `zoom` も入る)。旧 `gradus-drafts-v1` は読み込み時に移行。**構造を変えるときは移行処理を書き、書き出し/読み込み(`exportJSON`・`importFrom`)も合わせる。**
+localStorage キー `gradus-v3`、構造 `{drafts, prefs, history, stats, cfs, cfSeq, drillStats}`(`prefs` に判定の基準 `levels`・拡大率 `zoom` も入る)。読み込みは `readStore`(engine.js): `gradus-v3` が無ければ `gradus-v2` を読んで規則 id を新しいものに直し(`migrateIds`)、`gradus-v3` に書く。**`gradus-v2` は書き換えず消さない**(古い版に戻しても設定が残るように。D25)。書き出した記録(`format` 3)の読み込みも `migrateIds` を通す(format 2 以前は旧 id)。旧 `gradus-drafts-v1` は読み込み時に移行。**構造を変えるときは移行処理を書き、書き出し/読み込み(`exportJSON`・`importFrom`)も合わせる。**
 保存のたびに `persist()`(書き込みは400msにまとめ、ページを閉じるときに書き切る。すぐ書く必要があるときは `persistNow()`)。保存データ・読み込んだデータは `normStore()` が1項目ずつ検査するので、項目を足したらそこにも検査を足す。`state` の変更で Undo に残すものは `commit(snapshot)` を通す。
 
 **6. 重い計算は Worker。**
@@ -98,7 +98,7 @@ VexFlow が使えないときは手描き表示(`drawStaffLegacy`)に切り替�
 
 - 使っている版: **core 0.4.1**(`vendor/dojo-shared/core/VERSION`)。親フォルダの `dojo-shared/core/` からコピーしたもの。
 - 使っているもの: `pitch.js`(`N`・`midi`・`interval`・`motion` の中身)と、規則エンジン `rules.js`・`rules/*.js`・ruleset `data/rulesets/strict-2v.js`(声部対の規則6つ。`analyze` の `coreView` が判定の入力を作り、`fromCore` が結果を GR の形に戻す)。
-- コアの規則 id は統一後のもの(`contrary`・`leap`・`ambitus`)。画面・保存・プリセット・出題(`INJECT`)には今までの id(`antiparallel`・`leapBig`・`range`)を使う。id の変更と利用者の設定の移行は段階3a。
+- 規則 id はコアと同じ(`contrary`・`leap`・`ambitus` など)。旧 id は ruleset の `legacyId` にあり、`RENAMED`(engine.js)が保存データの移行に使う。
 - **コアのコピーは直接編集しない。直すときは `dojo-shared` で直して版を上げ、コピーし直す。** アプリの都合はコアの外(engine.js の包み)で吸収する。
 - 取り込み直す手順: `dojo-shared/core/` の `VERSION`・`CHANGELOG.md`・`src/`(`src/rules/` を含む。`.gitkeep` などは要らない)・`data/rulesets/strict-2v.js` と `.json` を `vendor/dojo-shared/core/` に上書きでコピー → 新しく読み込むファイルを `index.html`・`js/worker.js` の `importScripts`・`sw.js` の `SHELL` に足す → `sw.js` の `CACHE` を上げる → `node test/engine.test.js` と画面の確認。コピーとアプリの変更は、dojo-shared の変更とは別のコミット。
 - コアの版で何が変わったかは `vendor/dojo-shared/core/CHANGELOG.md`。判定結果が変わる版(MINOR が上がる)では、変わった判定を作者が確認してから取り込む。
